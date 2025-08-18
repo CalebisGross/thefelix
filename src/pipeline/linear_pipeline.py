@@ -298,14 +298,18 @@ class LinearPipeline:
         """Get list of currently active agents."""
         return [agent for agent in self.agents if agent.state == "active"]
     
-    def add_agent(self, agent: PipelineAgent) -> None:
+    def add_agent(self, agent: PipelineAgent, current_time: float = 0.0) -> None:
         """
         Add agent to the pipeline system.
         
         Args:
             agent: Agent to add to the system
+            current_time: Current simulation time
         """
         self.agents.append(agent)
+        # Add agent to first stage if it has capacity
+        if not self.stages[0].is_full():
+            self.stages[0].add_agent(agent)
     
     def get_active_agents(self) -> List[PipelineAgent]:
         """Get list of currently active agents."""

@@ -431,6 +431,35 @@ class SpokeManager:
             "agent_ids": list(self._spokes.keys())
         }
     
+    def register_agent(self, agent) -> str:
+        """
+        Register an agent and create a spoke connection.
+        
+        Args:
+            agent: Agent to register
+            
+        Returns:
+            Connection ID for the spoke
+        """
+        spoke = self.create_spoke(agent)
+        return spoke._connection_id
+    
+    def process_all_messages(self) -> int:
+        """
+        Process messages for all spokes.
+        
+        Returns:
+            Total number of messages processed
+        """
+        total_processed = 0
+        
+        # Process messages from central post
+        while self.central_post.has_pending_messages():
+            self.central_post.process_next_message()
+            total_processed += 1
+        
+        return total_processed
+    
     def shutdown_all(self) -> None:
         """Disconnect and remove all spokes."""
         for spoke in self._spokes.values():
