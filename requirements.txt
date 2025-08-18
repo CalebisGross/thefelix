@@ -1,0 +1,16 @@
+# Core dependencies for Felix Framework prototype
+numpy>=1.26.0
+pytest>=7.4.0
+hypothesis>=6.90.0
+
+# Development and testing
+pytest-cov>=4.1.0
+memory-profiler>=0.60.0
+
+# Documentation
+sphinx>=7.1.0
+sphinx-rtd-theme>=1.3.0
+
+# Optional visualization (install if needed)
+# matplotlib>=3.7.0
+# plotly>=5.17.0
