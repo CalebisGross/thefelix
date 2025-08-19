@@ -1,0 +1,148 @@
+{
+  "topic": "Continuous helix test",
+  "agents_participated": [
+    {
+      "agent_id": "research_001",
+      "agent_type": "research",
+      "spawn_time": 0.44999999999999996,
+      "position_info": {
+        "x": -0.03628158108015213,
+        "y": -0.011788600303412406,
+        "z": 11.549999999999999,
+        "radius": 0.03814871194141773,
+        "depth_ratio": 0.35,
+        "progress": 0.35
+      },
+      "content_preview": "Okay, here's a draft blog post about the Continuous Helix Test, written from the perspective of a re...",
+      "tokens_used": 695,
+      "processing_time": 10.030003460000444,
+      "confidence": 0.61,
+      "stage": 5
+    },
+    {
+      "agent_id": "research_001",
+      "agent_type": "research",
+      "spawn_time": 0.5499999999999999,
+      "position_info": {
+        "x": 0.06346729051733055,
+        "y": -0.08735523120934828,
+        "z": 14.849999999999998,
+        "radius": 0.10797700396496437,
+        "depth_ratio": 0.44999999999999996,
+        "progress": 0.44999999999999996
+      },
+      "content_preview": "Okay, here's a draft blog post about the Continuous Helix Test, geared towards being a research foun...",
+      "tokens_used": 695,
+      "processing_time": 10.093265771000006,
+      "confidence": 0.6699999999999999,
+      "stage": 6
+    },
+    {
+      "agent_id": "research_001",
+      "agent_type": "research",
+      "spawn_time": 0.65,
+      "position_info": {
+        "x": 0.17963929923398309,
+        "y": 0.2472522836717733,
+        "z": 18.150000000000002,
+        "radius": 0.3056206302103697,
+        "depth_ratio": 0.55,
+        "progress": 0.55
+      },
+      "content_preview": "Okay, commencing research and documentation regarding the Continuous Helix Test. My focus will be on...",
+      "tokens_used": 746,
+      "processing_time": 10.246485728002881,
+      "confidence": 0.73,
+      "stage": 7
+    },
+    {
+      "agent_id": "research_001",
+      "agent_type": "research",
+      "spawn_time": 0.7000000000000001,
+      "position_info": {
+        "x": 0.1588878644929327,
+        "y": -0.4890065648068041,
+        "z": 19.800000000000004,
+        "radius": 0.5141719302988793,
+        "depth_ratio": 0.6000000000000001,
+        "progress": 0.6000000000000001
+      },
+      "content_preview": "## The Continuous Helix Test: A Deep Dive into Iterative Research & Development\n\n**(A Collaborative ...",
+      "tokens_used": 743,
+      "processing_time": 10.289895223002532,
+      "confidence": 0.76,
+      "stage": 8
+    },
+    {
+      "agent_id": "research_001",
+      "agent_type": "research",
+      "spawn_time": 0.8000000000000002,
+      "position_info": {
+        "x": 1.1773820285620158,
+        "y": 0.8554181154595616,
+        "z": 23.100000000000005,
+        "radius": 1.4553242227892709,
+        "depth_ratio": 0.7000000000000002,
+        "progress": 0.7000000000000002
+      },
+      "content_preview": "Okay, commencing research and drafting content for a blog post titled \"Continuous Helix Test.\" My fo...",
+      "tokens_used": 735,
+      "processing_time": 10.206451718000608,
+      "confidence": 0.8200000000000001,
+      "stage": 9
+    },
+    {
+      "agent_id": "research_001",
+      "agent_type": "research",
+      "spawn_time": 0.9000000000000002,
+      "position_info": {
+        "x": -3.3324895519814652,
+        "y": 2.42119538364781,
+        "z": 26.40000000000001,
+        "radius": 4.119183620556759,
+        "depth_ratio": 0.8000000000000003,
+        "progress": 0.8000000000000003
+      },
+      "content_preview": "Okay, commencing research and drafting content for a blog post regarding the \"Continuous Helix Test....",
+      "tokens_used": 780,
+      "processing_time": 10.338196799002617,
+      "confidence": 0.8800000000000001,
+      "stage": 10
+    },
+    {
+      "agent_id": "analysis_001",
+      "agent_type": "analysis",
+      "spawn_time": 0.9000000000000002,
+      "position_info": {
+        "x": -0.03628158108015158,
+        "y": -0.011788600303414507,
+        "z": 11.55000000000001,
+        "radius": 0.03814871194141786,
+        "depth_ratio": 0.3500000000000003,
+        "progress": 0.3500000000000003
+      },
+      "content_preview": "Okay, here's an analysis document designed as the foundation for a blog post titled \"Continuous Heli...",
+      "tokens_used": 746,
+      "processing_time": 10.198539891996916,
+      "confidence": 0.6100000000000002,
+      "stage": 5
+    }
+  ],
+  "session_stats": {
+    "total_duration": 173.49031330400248,
+    "simulation_time": 1.0,
+    "agents_created": 3,
+    "agents_participated": 7,
+    "total_tokens_used": 5140,
+    "total_messages_processed": 18,
+    "llm_client_stats": {
+      "total_requests": 17,
+      "total_tokens": 12434,
+      "total_response_time": 173.4876728099989,
+      "average_response_time": 10.205157224117583,
+      "average_tokens_per_request": 731.4117647058823,
+      "connection_verified": true
+    }
+  },
+  "final_output": null
+}

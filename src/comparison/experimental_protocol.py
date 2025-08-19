@@ -30,7 +30,7 @@ import itertools
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 
-from src.core.helix_geometry import HelixGeometry
+from core.helix_geometry import HelixGeometry
 from .architecture_comparison import ArchitectureComparison, ExperimentalConfig
 
 

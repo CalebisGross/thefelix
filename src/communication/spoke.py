@@ -446,19 +446,47 @@ class SpokeManager:
     
     def process_all_messages(self) -> int:
         """
-        Process messages for all spokes.
+        Process and distribute messages through spoke system.
         
         Returns:
             Total number of messages processed
         """
         total_processed = 0
         
-        # Process messages from central post
+        # Process messages from central post and distribute to agents
         while self.central_post.has_pending_messages():
-            self.central_post.process_next_message()
-            total_processed += 1
+            message = self.central_post.process_next_message()
+            if message:
+                # Distribute to all active agents except sender
+                for agent_id, spoke in self._spokes.items():
+                    if (agent_id != message.sender_id and 
+                        spoke.is_connected and 
+                        hasattr(spoke.agent, 'receive_shared_context')):
+                        # Send message content to agent via their receive method
+                        spoke.agent.receive_shared_context(message.content)
+                total_processed += 1
         
         return total_processed
+    
+    def send_message(self, agent_id: str, message) -> str:
+        """
+        Send message from specific agent through their spoke.
+        
+        Args:
+            agent_id: ID of the agent sending the message
+            message: Message to send
+            
+        Returns:
+            Message ID for tracking
+            
+        Raises:
+            ValueError: If agent doesn't have a spoke
+        """
+        if agent_id not in self._spokes:
+            raise ValueError(f"No spoke found for agent {agent_id}")
+        
+        spoke = self._spokes[agent_id]
+        return spoke.send_message(message)
     
     def shutdown_all(self) -> None:
         """Disconnect and remove all spokes."""

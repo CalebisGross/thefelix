@@ -36,7 +36,7 @@ import uuid
 from typing import List, Dict, Set, Tuple, Optional, Any
 from dataclasses import dataclass
 
-from src.agents.agent import Agent
+from agents.agent import Agent
 
 
 @dataclass

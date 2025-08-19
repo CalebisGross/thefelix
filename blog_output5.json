@@ -1,0 +1,23 @@
+{
+  "topic": "Continuous helix test",
+  "agents_participated": [],
+  "session_stats": {
+    "total_duration": 0.001861422999354545,
+    "simulation_time": 10.000000000000007,
+    "max_timeout": 10.0,
+    "simulation_complete": false,
+    "agents_created": 3,
+    "agents_participated": 0,
+    "total_tokens_used": 0,
+    "total_messages_processed": 0,
+    "llm_client_stats": {
+      "total_requests": 0,
+      "total_tokens": 0,
+      "total_response_time": 0.0,
+      "average_response_time": 0.0,
+      "average_tokens_per_request": 0.0,
+      "connection_verified": true
+    }
+  },
+  "final_output": null
+}

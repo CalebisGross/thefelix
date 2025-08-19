@@ -1,0 +1,21 @@
+{
+  "topic": "Climate solutions",
+  "agents_participated": [],
+  "session_stats": {
+    "total_duration": 162.99466885499714,
+    "simulation_time": 1.0,
+    "agents_created": 6,
+    "agents_participated": 0,
+    "total_tokens_used": 0,
+    "total_messages_processed": 0,
+    "llm_client_stats": {
+      "total_requests": 5,
+      "total_tokens": 2953,
+      "total_response_time": 71.05307321300279,
+      "average_response_time": 14.210614642600557,
+      "average_tokens_per_request": 590.6,
+      "connection_verified": true
+    }
+  },
+  "final_output": null
+}

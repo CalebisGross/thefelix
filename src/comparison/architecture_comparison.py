@@ -28,12 +28,12 @@ from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
 
-from src.core.helix_geometry import HelixGeometry
-from src.agents.agent import Agent, create_openscad_agents
-from src.communication.central_post import CentralPost
-from src.communication.spoke import SpokeManager
-from src.communication.mesh import MeshCommunication
-from src.pipeline.linear_pipeline import LinearPipeline
+from core.helix_geometry import HelixGeometry
+from agents.agent import Agent, create_openscad_agents
+from communication.central_post import CentralPost
+from communication.spoke import SpokeManager
+from communication.mesh import MeshCommunication
+from pipeline.linear_pipeline import LinearPipeline
 from .statistical_analysis import StatisticalAnalyzer
 
 
@@ -222,11 +222,11 @@ class ArchitectureComparison:
         time_step = 0.01
         
         # Create pipeline agents based on spawn times
-        from src.agents.agent import generate_spawn_times
+        from agents.agent import generate_spawn_times
         spawn_times = generate_spawn_times(config.agent_count, config.random_seed)
         
         # Create pipeline agents
-        from src.pipeline.linear_pipeline import PipelineAgent
+        from pipeline.linear_pipeline import PipelineAgent
         pipeline_agents = []
         for i, spawn_time in enumerate(spawn_times):
             agent = PipelineAgent(f"pipeline_agent_{i}", spawn_time)

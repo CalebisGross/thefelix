@@ -27,7 +27,7 @@ Implementation supports testing of Hypotheses H1 (task distribution) and H3 (att
 import random
 from enum import Enum
 from typing import Optional, List, Tuple, Any
-from src.core.helix_geometry import HelixGeometry
+from core.helix_geometry import HelixGeometry
 
 
 class AgentState(Enum):
@@ -149,6 +149,23 @@ class Agent:
     def progress(self) -> float:
         """Get current progress along helix (0.0 to 1.0)."""
         return self._progress
+    
+    def get_position(self, current_time: float) -> Optional[Tuple[float, float, float]]:
+        """
+        Get agent's current position on the helix.
+        
+        Args:
+            current_time: Current simulation time
+            
+        Returns:
+            (x, y, z) position tuple or None if not spawned
+        """
+        if self.state == AgentState.WAITING:
+            return None
+        
+        # Update position based on current time
+        self.update_position(current_time)
+        return self.current_position
     
     def get_task_id(self) -> Optional[str]:
         """Get ID of current task, if any."""

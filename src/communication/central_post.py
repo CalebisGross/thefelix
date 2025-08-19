@@ -386,3 +386,35 @@ class CentralPost:
             "active_connections": self.active_connections,
             "uptime": time.time() - self._start_time
         }
+    
+    def accept_high_confidence_result(self, message: Message, min_confidence: float = 0.7) -> bool:
+        """
+        Accept agent results that meet minimum confidence threshold.
+        
+        This implements the natural selection aspect of the helix model -
+        only high-quality results from the narrow bottom of the helix
+        are accepted into the central coordination system.
+        
+        Args:
+            message: Message containing agent result
+            min_confidence: Minimum confidence threshold (0.0 to 1.0)
+            
+        Returns:
+            True if result was accepted, False if rejected
+        """
+        if message.message_type != MessageType.STATUS_UPDATE:
+            return False
+        
+        content = message.content
+        confidence = content.get("confidence", 0.0)
+        depth_ratio = content.get("position_info", {}).get("depth_ratio", 0.0)
+        
+        # Only accept results from agents deep in the helix with high confidence
+        if depth_ratio >= 0.8 and confidence >= min_confidence:
+            # Accept the result - add to processed messages
+            self._processed_messages.append(message)
+            self._total_messages_processed += 1
+            return True
+        else:
+            # Reject the result
+            return False
