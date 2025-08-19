@@ -22,14 +22,14 @@ import sys
 import time
 import asyncio
 import argparse
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from pathlib import Path
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from core.helix_geometry import HelixGeometry
-from llm.lm_studio_client import LMStudioClient, LMStudioConnectionError, RequestPriority
+from llm.lm_studio_client import LMStudioClient, LMStudioConnectionError
 from llm.token_budget import TokenBudgetManager
 from agents.llm_agent import LLMTask
 from agents.specialized_agents import create_specialized_team
@@ -46,20 +46,15 @@ class FelixBlogWriter:
     workflow management.
     """
     
-    def __init__(self, lm_studio_url: str = "http://localhost:1234/v1", random_seed: int = None,
-                 strict_mode: bool = False, max_concurrent_agents: int = 4):
+    def __init__(self, lm_studio_url: str = "http://localhost:1234/v1", random_seed: int = None):
         """
         Initialize the Felix blog writing system.
         
         Args:
             lm_studio_url: LM Studio API endpoint
             random_seed: Seed for randomization (None for truly random behavior)
-            strict_mode: Enable strict token budgets for lightweight models
-            max_concurrent_agents: Maximum concurrent agent processing
         """
         self.random_seed = random_seed
-        self.strict_mode = strict_mode
-        self.max_concurrent_agents = max_concurrent_agents
         
         # Create helix geometry (OpenSCAD parameters)
         self.helix = HelixGeometry(
@@ -70,7 +65,7 @@ class FelixBlogWriter:
         )
         
         # Initialize LLM client
-        self.llm_client = LMStudioClient(base_url=lm_studio_url, max_concurrent_requests=max_concurrent_agents)
+        self.llm_client = LMStudioClient(base_url=lm_studio_url)
         
         # Initialize communication system
         self.central_post = CentralPost(max_agents=20, enable_metrics=True)
@@ -78,10 +73,9 @@ class FelixBlogWriter:
         
         # Initialize token budget manager
         self.token_budget_manager = TokenBudgetManager(
-            base_budget=1200 if not strict_mode else 400,  # Reduced budget for strict mode
-            min_budget=150 if not strict_mode else 50,
-            max_budget=800 if not strict_mode else 150,
-            strict_mode=strict_mode
+            base_budget=1200,  # Increased budget for blog writing
+            min_budget=150,
+            max_budget=800
         )
         
         # Initialize agent factory for dynamic agent creation
@@ -210,8 +204,6 @@ class FelixBlogWriter:
         total_tokens = sum(a.get("tokens_used", 0) for a in results["agents_participated"])
         results["session_stats"] = {
             "total_duration": session_duration,
-            "simulation_time": simulation_time,
-            "simulation_complete": final_result is not None,
             "total_tokens_used": total_tokens,
             "agents_created": len(self.agents),
             "agents_participated": len(results["agents_participated"]),
@@ -240,6 +232,129 @@ class FelixBlogWriter:
         # Run the async version
         return asyncio.run(self.run_blog_writing_session_async(topic, simulation_time))
     
+    def display_results(self, results: Dict[str, Any]) -> None:
+                    
+                    print(f"\n[t={current_time:.2f}] 🌀 Spawning {agent.agent_id} ({agent.agent_type}) at helix top")
+                    agent.spawn(current_time, main_task)
+            
+            # Process all active agents as they descend the helix
+            for agent in self.agents:
+                if agent.state.value == "active":
+                    # Update agent position (descend the helix)
+                    agent.update_position(current_time)
+                    
+                    # Get current position info
+                    pos_info = agent.get_position_info(current_time)
+                    depth = pos_info.get("depth_ratio", 0.0)
+                    radius = pos_info.get("radius", 0.0)
+                    
+                    # Continuous processing: agents work as they descend
+                    # Process every few steps to show progression
+                    if current_time % 0.1 < time_step or agent.processing_stage == 0:
+                        try:
+                            result = agent.process_task_with_llm(main_task, current_time)
+                            
+                            print(f"  [{current_time:.2f}] 🔄 {agent.agent_id} processing (stage {result.processing_stage})")
+                            print(f"      Depth: {depth:.2f}, Confidence: {result.confidence:.2f}")
+                            
+                            # Share result with central post
+                            message = agent.share_result_to_central(result)
+                            self.spoke_manager.send_message(agent.agent_id, message)
+                            
+                            # Check for high-confidence acceptance
+                            if self.central_post.accept_high_confidence_result(message):
+                                print(f"      ✅ HIGH CONFIDENCE: {agent.agent_id} result accepted by central post!")
+                                print(f"      🎯 SIMULATION COMPLETE: Central post absorbed high-confidence result!")
+                                
+                                # Set as final output
+                                results["final_output"] = {
+                                    "content": result.content,
+                                    "agent_id": agent.agent_id,
+                                    "confidence": result.confidence,
+                                    "stage": result.processing_stage,
+                                    "timestamp": current_time
+                                }
+                                
+                                simulation_complete = True
+                            
+                            # Track results only for final output (when confidence is high enough)
+                            if result.confidence >= 0.6:  # Lower threshold for tracking
+                                results["agents_participated"].append({
+                                    "agent_id": agent.agent_id,
+                                    "agent_type": agent.agent_type,
+                                    "spawn_time": current_time,
+                                    "position_info": result.position_info,
+                                    "content_preview": result.content[:100] + "...",
+                                    "tokens_used": result.llm_response.tokens_used,
+                                    "processing_time": result.processing_time,
+                                    "confidence": result.confidence,
+                                    "stage": result.processing_stage
+                                })
+                                
+                                results["processing_timeline"].append({
+                                    "timestamp": current_time,
+                                    "agent_id": agent.agent_id,
+                                    "action": "task_processed",
+                                    "tokens": result.llm_response.tokens_used,
+                                    "confidence": result.confidence
+                                })
+                                
+                                # Final output is now set when central post accepts high-confidence result
+                        
+                        except Exception as e:
+                            print(f"  ✗ Error processing task for {agent.agent_id}: {e}")
+            
+            # Update active agents' positions
+            for agent in self.agents:
+                if agent.state.value == "active":
+                    agent.update_position(current_time)
+            
+            # Dynamic agent spawning: assess if new agents are needed
+            if current_time % 0.2 < time_step:  # Check every 0.2 time units
+                recommended_agents = self.agent_factory.assess_team_needs(
+                    self.central_post._processed_messages, current_time
+                )
+                
+                if recommended_agents:
+                    print(f"\n[t={current_time:.2f}] 🚀 Dynamic spawning {len(recommended_agents)} new agents:")
+                    for new_agent in recommended_agents:
+                        self.agents.append(new_agent)
+                        self.spoke_manager.register_agent(new_agent)
+                        print(f"    - {new_agent.agent_id} ({new_agent.agent_type}) spawns at t={new_agent.spawn_time:.3f}")
+            
+            # Emergent behavior: process agent interactions
+            if current_time % 0.15 < time_step:  # Check every 0.15 time units
+                self._process_agent_interactions(current_time)
+            
+            # Process communication system and advance time
+            self.spoke_manager.process_all_messages()
+            current_time += time_step
+        
+        session_end = time.perf_counter()
+        session_duration = session_end - session_start
+        
+        # Check if simulation completed due to timeout
+        if not simulation_complete and current_time >= max_timeout:
+            print(f"\n⚠️  WARNING: Simulation reached maximum timeout ({max_timeout:.1f} time units)")
+            print(f"    No agent achieved sufficient confidence for central post absorption.")
+            print(f"    Consider increasing agent processing time or adjusting confidence thresholds.")
+        elif simulation_complete:
+            print(f"\n✅ Simulation completed successfully at t={current_time:.2f}")
+        
+        # Collect final statistics
+        results["session_stats"] = {
+            "total_duration": session_duration,
+            "simulation_time": current_time,  # Actual time simulation ran to
+            "max_timeout": max_timeout,       # Maximum allowed time
+            "simulation_complete": simulation_complete,
+            "agents_created": len(self.agents),
+            "agents_participated": len(results["agents_participated"]),
+            "total_tokens_used": sum(a["tokens_used"] for a in results["agents_participated"]),
+            "total_messages_processed": self.central_post.total_messages_processed,
+            "llm_client_stats": self.llm_client.get_usage_stats()
+        }
+        
+        return results
     
     async def _run_parallel_processing(self, main_task: LLMTask, current_time: float, 
                                      time_step: float, simulation_time: float,
@@ -282,31 +397,19 @@ class FelixBlogWriter:
                     )
                     
                     # Check results and update
-                    # Check if synthesis agents have spawned and had a chance to process
-                    synthesis_agents_ready = any(
-                        agent.agent_type == "synthesis" and agent.state.value == "active"
-                        for agent in self.agents
-                    )
-                    
                     for result in batch_results:
                         if result:
-                            # Check for high-confidence acceptance (only synthesis agents can trigger completion)
+                            # Check for high-confidence acceptance
                             message = result['agent'].share_result_to_central(result['llm_result'])
                             await self.central_post.queue_message_async(message)
                             
-                            # Only accept synthesis results if synthesis agents are ready, or allow early completion
-                            # if we've processed for a while and no synthesis agents are spawning
-                            can_complete = (synthesis_agents_ready or 
-                                          current_time > 0.9)  # Fallback if synthesis agents don't spawn
-                            
-                            if can_complete and self.central_post.accept_high_confidence_result(message):
-                                print(f"      ✅ HIGH CONFIDENCE: {result['agent'].agent_id} ({result['agent'].agent_type}) result accepted!")
+                            if self.central_post.accept_high_confidence_result(message):
+                                print(f"      ✅ HIGH CONFIDENCE: {result['agent'].agent_id} result accepted!")
                                 print(f"      🎯 PARALLEL SIMULATION COMPLETE!")
                                 
                                 results["final_output"] = {
                                     "content": result['llm_result'].content,
                                     "agent_id": result['agent'].agent_id,
-                                    "agent_type": result['agent'].agent_type,
                                     "confidence": result['llm_result'].confidence,
                                     "stage": result['llm_result'].processing_stage,
                                     "timestamp": current_time
@@ -496,20 +599,11 @@ def main():
     parser.add_argument("--save-output", help="Save results to file")
     parser.add_argument("--random-seed", type=int, 
                        help="Random seed for reproducibility (omit for truly random)")
-    parser.add_argument("--strict-mode", action="store_true",
-                       help="Enable strict token budgets for lightweight models")
-    parser.add_argument("--max-concurrent", type=int, default=4,
-                       help="Maximum concurrent agents (default: 4)")
     
     args = parser.parse_args()
     
     # Create blog writer
-    writer = FelixBlogWriter(
-        lm_studio_url=args.lm_studio_url, 
-        random_seed=args.random_seed,
-        strict_mode=args.strict_mode,
-        max_concurrent_agents=args.max_concurrent
-    )
+    writer = FelixBlogWriter(lm_studio_url=args.lm_studio_url, random_seed=args.random_seed)
     
     # Test LM Studio connection
     if not writer.test_lm_studio_connection():

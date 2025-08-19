@@ -70,6 +70,12 @@ class Agent:
         self.current_position: Optional[Tuple[float, float, float]] = None
         self._progress: float = 0.0
         self._spawn_timestamp: Optional[float] = None
+        
+        # Non-linear progression mechanics
+        self._velocity: float = random.uniform(0.7, 1.3)  # Base velocity multiplier
+        self._pause_until: Optional[float] = None  # Pause agent until this time
+        self._acceleration: float = 1.0  # Current acceleration factor
+        self._confidence_history: List[float] = []  # Track confidence over time
     
     def _validate_initialization(self, agent_id: str, spawn_time: float) -> None:
         """Validate agent initialization parameters."""
@@ -117,7 +123,7 @@ class Agent:
     
     def update_position(self, current_time: float) -> None:
         """
-        Update agent position based on current time.
+        Update agent position based on current time with non-linear progression.
         
         Args:
             current_time: Current simulation time
@@ -135,11 +141,25 @@ class Agent:
         if self._spawn_timestamp is None:
             raise ValueError("Cannot update position: agent has not spawned")
         
-        progression_time = current_time - self._spawn_timestamp
-        self._progress = min(progression_time, 1.0)  # Cap at 1.0
+        # Check for pauses
+        if self._pause_until is not None and current_time < self._pause_until:
+            return  # Agent is paused, don't update position
+        
+        # Non-linear progression calculation
+        base_progression_time = current_time - self._spawn_timestamp
+        
+        # Apply velocity and acceleration modifiers
+        effective_velocity = self._velocity * self._acceleration
+        adjusted_progression_time = base_progression_time * effective_velocity
+        
+        # Update progress with non-linear factors
+        self._progress = min(adjusted_progression_time, 1.0)  # Cap at 1.0
         
         # Update position
         self.current_position = self.helix.get_position(self._progress)
+        
+        # Adaptive acceleration based on confidence history
+        self._adapt_velocity_from_confidence()
         
         # Check for completion
         if self._progress >= 1.0:
@@ -181,6 +201,64 @@ class Agent:
     def __repr__(self) -> str:
         """Detailed representation for debugging."""
         return str(self)
+    
+    def _adapt_velocity_from_confidence(self) -> None:
+        """Adapt agent velocity based on confidence history."""
+        if len(self._confidence_history) < 2:
+            return  # Need at least 2 confidence readings for trend analysis
+        
+        # Calculate confidence trend (recent vs earlier)
+        recent_avg = sum(self._confidence_history[-2:]) / 2
+        earlier_avg = sum(self._confidence_history[:-2]) / max(1, len(self._confidence_history) - 2)
+        
+        confidence_trend = recent_avg - earlier_avg
+        
+        # Adjust acceleration based on confidence trend
+        if confidence_trend > 0.1:  # Improving confidence
+            self._acceleration = min(1.5, self._acceleration * 1.1)  # Speed up
+        elif confidence_trend < -0.1:  # Decreasing confidence
+            self._acceleration = max(0.5, self._acceleration * 0.9)  # Slow down
+        # Else maintain current acceleration
+    
+    def record_confidence(self, confidence: float) -> None:
+        """Record confidence score for adaptive progression."""
+        self._confidence_history.append(confidence)
+        # Keep only recent history to prevent memory bloat
+        if len(self._confidence_history) > 10:
+            self._confidence_history = self._confidence_history[-10:]
+    
+    def pause_for_duration(self, duration: float, current_time: float) -> None:
+        """Pause agent progression for specified duration."""
+        self._pause_until = current_time + duration
+    
+    def set_velocity_multiplier(self, velocity: float) -> None:
+        """Set base velocity multiplier for this agent."""
+        self._velocity = max(0.1, min(3.0, velocity))  # Clamp to reasonable range
+    
+    @property
+    def velocity(self) -> float:
+        """Get current effective velocity (velocity * acceleration)."""
+        return self._velocity * self._acceleration
+    
+    @property
+    def is_paused(self) -> bool:
+        """Check if agent is currently paused."""
+        return self._pause_until is not None
+    
+    def get_progression_info(self) -> dict:
+        """Get detailed progression information for debugging."""
+        return {
+            "velocity": self._velocity,
+            "acceleration": self._acceleration,
+            "effective_velocity": self.velocity,
+            "is_paused": self.is_paused,
+            "pause_until": self._pause_until,
+            "confidence_history": self._confidence_history.copy(),
+            "confidence_trend": (
+                self._confidence_history[-1] - self._confidence_history[0]
+                if len(self._confidence_history) > 1 else 0.0
+            )
+        }
 
 
 def generate_spawn_times(count: int, seed: Optional[int] = None) -> List[float]:

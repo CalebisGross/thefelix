@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 """
-Blog Writer Demo using Felix Framework Geometric Orchestration.
+Colony Design Demo using Felix Framework Geometric Orchestration.
 
 This demo showcases how the Felix Framework's helix-based multi-agent system
-can be used for collaborative content creation, demonstrating the geometric
-orchestration approach as an alternative to traditional multi-agent systems.
+can be used to collaboratively design a self-sustaining human colony on a hypothetical
+exoplanet, Kepler-999z, addressing ecological, scientific, energy, governance, and
+philosophical challenges. It demonstrates the geometric orchestration approach as an
+alternative to traditional multi-agent systems.
 
-The demo creates a team of specialized LLM agents that work together to write
-a blog post, with agents spawning at different times and converging naturally
-through the helix geometry toward a final synthesis.
+The demo creates a team of specialized LLM agents that work together to produce a
+comprehensive colony design plan, with agents spawning at different times and converging
+naturally through the helix geometry toward a final synthesis.
 
 Usage:
-    python examples/blog_writer.py "Write a blog post about quantum computing"
+    python examples/colony_design.py
 
 Requirements:
     - LM Studio running with a model loaded (http://localhost:1234)
@@ -37,19 +39,19 @@ from communication.central_post import CentralPost, AgentFactory
 from communication.spoke import SpokeManager
 
 
-class FelixBlogWriter:
+class FelixColonyDesigner:
     """
-    Blog writing system using Felix geometric orchestration.
+    Colony design system using Felix geometric orchestration.
     
-    Demonstrates how helix-based agent coordination can create
-    content through natural convergence rather than explicit
-    workflow management.
+    Demonstrates how helix-based agent coordination can create a comprehensive
+    plan for a self-sustaining human colony on an exoplanet through natural
+    convergence rather than explicit workflow management.
     """
     
     def __init__(self, lm_studio_url: str = "http://localhost:1234/v1", random_seed: int = None,
                  strict_mode: bool = False, max_concurrent_agents: int = 4):
         """
-        Initialize the Felix blog writing system.
+        Initialize the Felix colony design system.
         
         Args:
             lm_studio_url: LM Studio API endpoint
@@ -95,7 +97,7 @@ class FelixBlogWriter:
         # Agent team
         self.agents = []
         
-        print(f"Felix Blog Writer initialized")
+        print(f"Felix Colony Designer initialized")
         print(f"Helix: {self.helix.turns} turns, {self.helix.top_radius}→{self.helix.bottom_radius} radius")
         if random_seed is not None:
             print(f"Random seed: {random_seed} (deterministic behavior)")
@@ -115,16 +117,16 @@ class FelixBlogWriter:
             print(f"✗ LM Studio connection error: {e}")
             return False
     
-    def create_blog_writing_team(self, complexity: str = "medium") -> None:
+    def create_colony_design_team(self, complexity: str = "complex") -> None:
         """
-        Create specialized team for blog writing with randomized spawn times.
+        Create specialized team for colony design with randomized spawn times.
         
         Args:
-            complexity: Task complexity level
+            complexity: Task complexity level (default: complex)
         """
-        print(f"\nCreating {complexity} complexity blog writing team...")
+        print(f"\nCreating {complexity} complexity colony design team...")
         
-        # Create specialized agents with randomized spawn times
+        # Create specialized agents with default roles, relying on task description for guidance
         self.agents = create_specialized_team(
             helix=self.helix,
             llm_client=self.llm_client,
@@ -142,19 +144,19 @@ class FelixBlogWriter:
             print(f"  - {agent.agent_id} ({agent.agent_type}) spawns at t={agent.spawn_time:.3f}")
         print(f"Agent spawn times are {'deterministic' if self.random_seed is not None else 'randomized'}")
     
-    async def run_blog_writing_session_async(self, topic: str, simulation_time: float = 1.0) -> Dict[str, Any]:
+    async def run_colony_design_session_async(self, simulation_time: float = 1.0) -> Dict[str, Any]:
         """
-        Run collaborative blog writing session with true parallel processing.
+        Run collaborative colony design session with true parallel processing.
         
         Args:
-            topic: Blog post topic
             simulation_time: Duration of simulation (0.0 to 1.0)
             
         Returns:
-            Results from the writing session
+            Results from the design session
         """
+        topic = "Design a self-sustaining human colony on Kepler-999z"
         print(f"\n{'='*60}")
-        print(f"FELIX PARALLEL BLOG WRITING SESSION")
+        print(f"FELIX PARALLEL COLONY DESIGN SESSION")
         print(f"Topic: {topic}")
         print(f"Mode: {'STRICT (Lightweight)' if self.strict_mode else 'NORMAL'}")
         print(f"{'='*60}")
@@ -164,9 +166,24 @@ class FelixBlogWriter:
         
         # Create the main task
         main_task = LLMTask(
-            task_id="blog_post_001",
-            description=f"Write a comprehensive blog post about: {topic}",
-            context=f"This is a collaborative writing project. Multiple agents will contribute research, analysis, and synthesis to create a high-quality blog post about {topic}."
+            task_id="colony_design_001",
+            description=(
+                "Design a self-sustaining human colony for 10,000 people on Kepler-999z, an exoplanet with "
+                "Earth-like conditions but a silicon-oxygen polymer-based ecosystem and non-linear time dilation "
+                "effects near pulsar-induced geological sites. Address: (1) sustainable ecological integration "
+                "with silicon-based lifeforms, (2) safe utilization of time dilation sites for research while "
+                "mitigating cognitive risks, (3) an energy-independent system leveraging the planet’s technetium-99 "
+                "and pulsar radiation, (4) a governance model balancing human needs and ethical considerations for "
+                "potentially sentient lifeforms, and (5) a speculative technological breakthrough grounded in 2025 "
+                "science to address one major challenge. Reflect on the philosophical implications of colonizing a "
+                "planet with non-linear time and sentient silicon life."
+            ),
+            context=(
+                "This is a collaborative project. Agents must contribute specialized expertise (e.g., astrobiology, "
+                "astrophysics, engineering, ethics) to create a comprehensive colony design plan. The plan must integrate "
+                "all components cohesively, ensuring human survival, scientific advancement, and ethical coexistence. "
+                "Agents should adapt their roles to address specific aspects of the task as needed."
+            )
         )
         
         # Track session results
@@ -226,20 +243,18 @@ class FelixBlogWriter:
         
         return results
     
-    def run_blog_writing_session(self, topic: str, simulation_time: float = 1.0) -> Dict[str, Any]:
+    def run_colony_design_session(self, simulation_time: float = 1.0) -> Dict[str, Any]:
         """
-        Run collaborative blog writing session.
+        Run collaborative colony design session.
         
         Args:
-            topic: Blog post topic
             simulation_time: Duration of simulation (0.0 to 1.0)
             
         Returns:
-            Results from the writing session
+            Results from the design session
         """
         # Run the async version
-        return asyncio.run(self.run_blog_writing_session_async(topic, simulation_time))
-    
+        return asyncio.run(self.run_colony_design_session_async(simulation_time))
     
     async def _run_parallel_processing(self, main_task: LLMTask, current_time: float, 
                                      time_step: float, simulation_time: float,
@@ -282,7 +297,6 @@ class FelixBlogWriter:
                     )
                     
                     # Check results and update
-                    # Check if synthesis agents have spawned and had a chance to process
                     synthesis_agents_ready = any(
                         agent.agent_type == "synthesis" and agent.state.value == "active"
                         for agent in self.agents
@@ -290,14 +304,12 @@ class FelixBlogWriter:
                     
                     for result in batch_results:
                         if result:
-                            # Check for high-confidence acceptance (only synthesis agents can trigger completion)
+                            # Check for high-confidence acceptance
                             message = result['agent'].share_result_to_central(result['llm_result'])
                             await self.central_post.queue_message_async(message)
                             
-                            # Only accept synthesis results if synthesis agents are ready, or allow early completion
-                            # if we've processed for a while and no synthesis agents are spawning
                             can_complete = (synthesis_agents_ready or 
-                                          current_time > 0.9)  # Fallback if synthesis agents don't spawn
+                                          current_time > 0.9)
                             
                             if can_complete and self.central_post.accept_high_confidence_result(message):
                                 print(f"      ✅ HIGH CONFIDENCE: {result['agent'].agent_id} ({result['agent'].agent_type}) result accepted!")
@@ -351,12 +363,7 @@ class FelixBlogWriter:
         """
         async def process_single_agent(agent):
             try:
-                # Determine priority based on agent type and strict mode
-                if self.strict_mode:
-                    priority = RequestPriority.HIGH  # High priority in strict mode
-                else:
-                    priority = RequestPriority.NORMAL
-                
+                priority = RequestPriority.HIGH if self.strict_mode else RequestPriority.NORMAL
                 result = await agent.process_task_with_llm_async(
                     main_task, current_time, priority
                 )
@@ -382,18 +389,12 @@ class FelixBlogWriter:
                     "error": str(e)
                 }
         
-        # Process all agents in the batch concurrently
         results = await asyncio.gather(
             *[process_single_agent(agent) for agent in agents],
             return_exceptions=True
         )
         
-        # Filter out exceptions and failed results
-        successful_results = []
-        for result in results:
-            if isinstance(result, dict) and result.get("success", False):
-                successful_results.append(result)
-        
+        successful_results = [r for r in results if isinstance(r, dict) and r.get("success", False)]
         return successful_results
     
     def display_results(self, results: Dict[str, Any]) -> None:
@@ -410,7 +411,6 @@ class FelixBlogWriter:
         print(f"Tokens: {stats['total_tokens_used']} total")
         print(f"Messages: {stats['total_messages_processed']} processed")
         
-        # Show token budget summary if available
         if hasattr(self, 'token_budget_manager'):
             budget_status = self.token_budget_manager.get_system_status()
             print(f"Token Efficiency: {budget_status['system_efficiency']:.1%} "
@@ -424,7 +424,7 @@ class FelixBlogWriter:
         
         if results["final_output"]:
             print(f"\n{'='*60}")
-            print(f"FINAL BLOG POST")
+            print(f"FINAL COLONY DESIGN PLAN")
             print(f"{'='*60}")
             print(results["final_output"]["content"])
             print(f"\n[Generated by {results['final_output']['agent_id']} "
@@ -434,44 +434,14 @@ class FelixBlogWriter:
         else:
             print(f"\nNo final synthesis output was generated.")
     
-    def _process_agent_interactions(self, current_time: float) -> None:
-        """Process emergent behavior and agent interactions."""
-        active_agents = [agent for agent in self.agents if agent.state.value == "active"]
-        
-        if len(active_agents) < 2:
-            return  # Need at least 2 agents for interactions
-        
-        interactions_processed = 0
-        
-        for agent in active_agents:
-            # Assess collaboration opportunities
-            opportunities = agent.assess_collaboration_opportunities(active_agents, current_time)
-            
-            # Process top collaboration opportunities
-            for opportunity in opportunities[:2]:  # Limit to top 2 to avoid chaos
-                other_agent_id = opportunity["agent_id"]
-                other_agent = next((a for a in active_agents if a.agent_id == other_agent_id), None)
-                
-                if other_agent and opportunity["compatibility"] > 0.6:
-                    influence_type = opportunity["recommended_influence"]
-                    influence_strength = opportunity["compatibility"] * 0.5  # Moderate influence
-                    
-                    agent.influence_agent_behavior(other_agent, influence_type, influence_strength)
-                    interactions_processed += 1
-                    
-                    if interactions_processed % 5 == 0:  # Report occasional interactions
-                        print(f"  [t={current_time:.2f}] 🤝 {agent.agent_id} → {other_agent.agent_id}: "
-                              f"{influence_type} (strength: {influence_strength:.2f})")
-    
     def save_results(self, results: Dict[str, Any], output_file: str = None) -> None:
         """Save results to file."""
         if output_file is None:
             timestamp = int(time.time())
-            output_file = f"blog_writing_session_{timestamp}.json"
+            output_file = f"colony_design_session_{timestamp}.json"
         
         import json
         with open(output_file, 'w') as f:
-            # Make results JSON serializable
             serializable_results = {
                 "topic": results["topic"],
                 "agents_participated": results["agents_participated"],
@@ -484,11 +454,10 @@ class FelixBlogWriter:
 
 
 def main():
-    """Main function for blog writer demo."""
-    parser = argparse.ArgumentParser(description="Felix Framework Blog Writer Demo")
-    parser.add_argument("topic", help="Blog post topic")
+    """Main function for colony design demo."""
+    parser = argparse.ArgumentParser(description="Felix Framework Colony Design Demo")
     parser.add_argument("--complexity", choices=["simple", "medium", "complex"], 
-                       default="medium", help="Task complexity level")
+                       default="complex", help="Task complexity level")
     parser.add_argument("--simulation-time", type=float, default=1.0,
                        help="Simulation duration (0.0 to 1.0)")
     parser.add_argument("--lm-studio-url", default="http://localhost:1234/v1",
@@ -503,8 +472,8 @@ def main():
     
     args = parser.parse_args()
     
-    # Create blog writer
-    writer = FelixBlogWriter(
+    # Create colony designer
+    designer = FelixColonyDesigner(
         lm_studio_url=args.lm_studio_url, 
         random_seed=args.random_seed,
         strict_mode=args.strict_mode,
@@ -512,22 +481,21 @@ def main():
     )
     
     # Test LM Studio connection
-    if not writer.test_lm_studio_connection():
+    if not designer.test_lm_studio_connection():
         print("\nPlease ensure LM Studio is running with a model loaded.")
         sys.exit(1)
     
     # Create team and run session
-    writer.create_blog_writing_team(complexity=args.complexity)
-    results = writer.run_blog_writing_session(
-        topic=args.topic,
+    designer.create_colony_design_team(complexity=args.complexity)
+    results = designer.run_colony_design_session(
         simulation_time=args.simulation_time
     )
     
     # Display and optionally save results
-    writer.display_results(results)
+    designer.display_results(results)
     
     if args.save_output:
-        writer.save_results(results, args.save_output)
+        designer.save_results(results, args.save_output)
 
 
 if __name__ == "__main__":

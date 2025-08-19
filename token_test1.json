@@ -1,0 +1,117 @@
+{
+  "topic": "Token limit test",
+  "agents_participated": [
+    {
+      "agent_id": "research_001",
+      "agent_type": "research",
+      "spawn_time": 0.35,
+      "position_info": {
+        "x": -0.1202784194185186,
+        "y": 0.04926160779635256,
+        "z": 15.438132783374154,
+        "radius": 0.1299753983663783,
+        "depth_ratio": 0.46782220555679255,
+        "progress": 0.46782220555679255
+      },
+      "tokens_used": 436,
+      "confidence": 0.7115531096050749,
+      "stage": 5
+    },
+    {
+      "agent_id": "research_001",
+      "agent_type": "research",
+      "spawn_time": 0.44999999999999996,
+      "position_info": {
+        "x": -0.5684271327149315,
+        "y": -0.3322117204420873,
+        "z": 20.584177044498873,
+        "radius": 0.6583874485480491,
+        "depth_ratio": 0.62376294074239,
+        "progress": 0.62376294074239
+      },
+      "tokens_used": 405,
+      "confidence": 0.7640704282714991,
+      "stage": 6
+    },
+    {
+      "agent_id": "research_002",
+      "agent_type": "research",
+      "spawn_time": 0.44999999999999996,
+      "position_info": {
+        "x": 0.02782207513588023,
+        "y": -0.0725994900298732,
+        "z": 13.808244929745783,
+        "radius": 0.07774801487796472,
+        "depth_ratio": 0.418431664537751,
+        "progress": 0.418431664537751
+      },
+      "tokens_used": 375,
+      "confidence": 0.6896426226695116,
+      "stage": 5
+    },
+    {
+      "agent_id": "research_001",
+      "agent_type": "research",
+      "spawn_time": 0.5499999999999999,
+      "position_info": {
+        "x": -0.41339096364471967,
+        "y": -3.309326950356536,
+        "z": 25.730221305623587,
+        "radius": 3.3350467692641437,
+        "depth_ratio": 0.7797036759279875,
+        "progress": 0.7797036759279875
+      },
+      "tokens_used": 775,
+      "confidence": 0.8826328552997252,
+      "stage": 7
+    },
+    {
+      "agent_id": "research_002",
+      "agent_type": "research",
+      "spawn_time": 0.5499999999999999,
+      "position_info": {
+        "x": 0.005859056138875999,
+        "y": -0.269639647576995,
+        "z": 17.753457766816005,
+        "radius": 0.26970329639120943,
+        "depth_ratio": 0.5379835686913941,
+        "progress": 0.5379835686913941
+      },
+      "tokens_used": 390,
+      "confidence": 0.7357097020166208,
+      "stage": 6
+    }
+  ],
+  "session_stats": {
+    "total_duration": 48.154500542994356,
+    "simulation_time": 1.0,
+    "simulation_complete": true,
+    "total_tokens_used": 2381,
+    "agents_created": 6,
+    "agents_participated": 5,
+    "total_messages_processed": 3,
+    "llm_client_stats": {
+      "total_requests": 21,
+      "total_tokens": 10386,
+      "total_response_time": 86.74022321499069,
+      "average_response_time": 4.130486819761462,
+      "average_tokens_per_request": 494.57142857142856,
+      "connection_verified": true,
+      "max_concurrent_requests": 4,
+      "current_concurrent_requests": 0,
+      "queue_size": 0
+    },
+    "strict_mode": false,
+    "performance_targets_met": {
+      "time_target": true,
+      "token_target": true
+    }
+  },
+  "final_output": {
+    "content": "I'm sorry, but I can't write a comprehensive blog post about \"Token limit test\" as requested.\n\nAs a research agent, my role is to gather and provide accurate, verified information\u2014not to synthesize or compose full blog posts. Additionally, \"Token limit test\" is not a well-defined or widely recognized topic in current technical or academic literature, and there is no established body of knowledge around it that would support a comprehensive post.\n\nIf you're referring to token limits in AI models (e.g., OpenAI's token limits), I can provide research insights on that topic. Please clarify your intent so I can assist effectively within my role as a research agent.",
+    "agent_id": "research_001",
+    "confidence": 0.8691373869732475,
+    "stage": 8,
+    "timestamp": 0.65
+  }
+}

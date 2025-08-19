@@ -25,11 +25,19 @@ Implementation supports rigorous testing of Hypothesis H2 communication efficien
 
 import time
 import uuid
+import random
 from enum import Enum
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any, Tuple, TYPE_CHECKING
 from dataclasses import dataclass, field
 from collections import deque
 from queue import Queue, Empty
+import asyncio
+
+if TYPE_CHECKING:
+    from agents.llm_agent import LLMAgent
+    from core.helix_geometry import HelixGeometry
+    from llm.lm_studio_client import LMStudioClient
+    from llm.token_budget import TokenBudgetManager
 
 
 class MessageType(Enum):
@@ -74,9 +82,11 @@ class CentralPost:
         self._registered_agents: Dict[str, str] = {}  # agent_id -> connection_id
         self._connection_times: Dict[str, float] = {}  # agent_id -> registration_time
         
-        # Message processing
+        # Message processing (sync and async)
         self._message_queue: Queue = Queue()
+        self._async_message_queue: asyncio.Queue = None  # Lazy initialization
         self._processed_messages: List[Message] = []
+        self._async_processors: List[asyncio.Task] = []
         
         # Performance metrics (for Hypothesis H2)
         self._metrics_enabled = enable_metrics
@@ -168,9 +178,15 @@ class CentralPost:
         """
         return agent_id in self._registered_agents
     
+    async def _ensure_async_queue(self) -> asyncio.Queue:
+        """Ensure async message queue is initialized."""
+        if self._async_message_queue is None:
+            self._async_message_queue = asyncio.Queue(maxsize=1000)
+        return self._async_message_queue
+    
     def queue_message(self, message: Message) -> str:
         """
-        Queue a message for processing.
+        Queue a message for processing (sync).
         
         Args:
             message: Message to queue
@@ -187,6 +203,29 @@ class CentralPost:
         
         # Queue message
         self._message_queue.put(message)
+        
+        return message.message_id
+    
+    async def queue_message_async(self, message: Message) -> str:
+        """
+        Queue a message for async processing.
+        
+        Args:
+            message: Message to queue
+            
+        Returns:
+            Message ID for tracking
+        """
+        if not self._is_active:
+            raise RuntimeError("Central post is not active")
+        
+        # Validate sender is registered
+        if message.sender_id != "central_post" and message.sender_id not in self._registered_agents:
+            raise ValueError(f"Message from unregistered agent: {message.sender_id}")
+        
+        # Queue message asynchronously
+        async_queue = await self._ensure_async_queue()
+        await async_queue.put(message)
         
         return message.message_id
     
@@ -228,6 +267,43 @@ class CentralPost:
         except Empty:
             return None
     
+    async def process_next_message_async(self) -> Optional[Message]:
+        """
+        Process the next message in the async queue (FIFO order).
+        
+        Returns:
+            Processed message, or None if queue is empty
+        """
+        try:
+            async_queue = await self._ensure_async_queue()
+            
+            # Try to get message without blocking
+            try:
+                message = async_queue.get_nowait()
+            except asyncio.QueueEmpty:
+                return None
+            
+            # Get next message
+            start_time = time.time() if self._metrics_enabled else None
+            
+            # Process message asynchronously
+            await self._handle_message_async(message)
+            
+            # Record metrics
+            if self._metrics_enabled and start_time:
+                processing_time = time.time() - start_time
+                self._processing_times.append(processing_time)
+            
+            # Track processed message
+            self._processed_messages.append(message)
+            self._total_messages_processed += 1
+            
+            return message
+            
+        except Exception as e:
+            logger.error(f"Async message processing failed: {e}")
+            return None
+    
     def _handle_message(self, message: Message) -> None:
         """
         Handle specific message types (internal processing).
@@ -244,6 +320,24 @@ class CentralPost:
             self._handle_task_completion(message)
         elif message.message_type == MessageType.ERROR_REPORT:
             self._handle_error_report(message)
+        # Add more handlers as needed
+    
+    async def _handle_message_async(self, message: Message) -> None:
+        """
+        Handle specific message types asynchronously (internal processing).
+        
+        Args:
+            message: Message to handle
+        """
+        # Message type-specific async handling
+        if message.message_type == MessageType.TASK_REQUEST:
+            await self._handle_task_request_async(message)
+        elif message.message_type == MessageType.STATUS_UPDATE:
+            await self._handle_status_update_async(message)
+        elif message.message_type == MessageType.TASK_COMPLETE:
+            await self._handle_task_completion_async(message)
+        elif message.message_type == MessageType.ERROR_REPORT:
+            await self._handle_error_report_async(message)
         # Add more handlers as needed
     
     def _handle_task_request(self, message: Message) -> None:
@@ -264,6 +358,27 @@ class CentralPost:
     def _handle_error_report(self, message: Message) -> None:
         """Handle error report from agent."""
         # Placeholder for error handling logic
+        pass
+    
+    # Async message handlers
+    async def _handle_task_request_async(self, message: Message) -> None:
+        """Handle task request from agent asynchronously."""
+        # Async task assignment logic
+        pass
+    
+    async def _handle_status_update_async(self, message: Message) -> None:
+        """Handle status update from agent asynchronously."""
+        # Async status tracking logic
+        pass
+    
+    async def _handle_task_completion_async(self, message: Message) -> None:
+        """Handle task completion notification asynchronously."""
+        # Async completion processing logic
+        pass
+    
+    async def _handle_error_report_async(self, message: Message) -> None:
+        """Handle error report from agent asynchronously."""
+        # Async error handling logic
         pass
     
     # Performance metrics methods (for Hypothesis H2)
@@ -352,6 +467,28 @@ class CentralPost:
         """
         return self._scaling_metrics.copy()
     
+    async def start_async_processing(self, max_concurrent_processors: int = 3) -> None:
+        """Start async message processors."""
+        for i in range(max_concurrent_processors):
+            processor = asyncio.create_task(self._async_message_processor(f"processor_{i}"))
+            self._async_processors.append(processor)
+    
+    async def _async_message_processor(self, processor_id: str) -> None:
+        """Individual async message processor."""
+        while self._is_active:
+            try:
+                message = await self.process_next_message_async()
+                if message is None:
+                    # No messages to process, wait briefly
+                    await asyncio.sleep(0.01)
+                    continue
+                    
+                logger.debug(f"Processor {processor_id} handled message {message.message_id}")
+                
+            except Exception as e:
+                logger.error(f"Async processor {processor_id} error: {e}")
+                await asyncio.sleep(0.1)  # Brief recovery delay
+    
     def shutdown(self) -> None:
         """Shutdown the central post and disconnect all agents."""
         self._is_active = False
@@ -366,6 +503,20 @@ class CentralPost:
                 self._message_queue.get_nowait()
             except Empty:
                 break
+    
+    async def shutdown_async(self) -> None:
+        """Shutdown async components."""
+        self._is_active = False
+        
+        # Cancel async processors
+        for processor in self._async_processors:
+            processor.cancel()
+        
+        # Wait for processors to finish
+        if self._async_processors:
+            await asyncio.gather(*self._async_processors, return_exceptions=True)
+        
+        self._async_processors.clear()
     
     def get_performance_summary(self) -> Dict[str, Any]:
         """
@@ -384,16 +535,18 @@ class CentralPost:
             "average_overhead_ratio": self.get_average_overhead_ratio(),
             "scaling_metrics": self.get_scaling_metrics(),
             "active_connections": self.active_connections,
-            "uptime": time.time() - self._start_time
+            "uptime": time.time() - self._start_time,
+            "async_processors": len(self._async_processors),
+            "async_queue_size": self._async_message_queue.qsize() if self._async_message_queue else 0
         }
     
-    def accept_high_confidence_result(self, message: Message, min_confidence: float = 0.7) -> bool:
+    def accept_high_confidence_result(self, message: Message, min_confidence: float = 0.8) -> bool:
         """
         Accept agent results that meet minimum confidence threshold.
         
         This implements the natural selection aspect of the helix model -
-        only high-quality results from the narrow bottom of the helix
-        are accepted into the central coordination system.
+        only high-quality results from synthesis agents deep in the helix
+        are accepted as final output from the central coordination system.
         
         Args:
             message: Message containing agent result
@@ -408,9 +561,14 @@ class CentralPost:
         content = message.content
         confidence = content.get("confidence", 0.0)
         depth_ratio = content.get("position_info", {}).get("depth_ratio", 0.0)
+        agent_type = content.get("agent_type", "")
         
-        # Only accept results from agents deep in the helix with high confidence
-        if depth_ratio >= 0.8 and confidence >= min_confidence:
+        # Only synthesis agents can produce final output
+        if agent_type != "synthesis":
+            return False
+        
+        # Synthesis agents should be deep in the helix (>0.7) with high confidence
+        if depth_ratio >= 0.7 and confidence >= min_confidence:
             # Accept the result - add to processed messages
             self._processed_messages.append(message)
             self._total_messages_processed += 1
@@ -418,3 +576,180 @@ class CentralPost:
         else:
             # Reject the result
             return False
+
+
+class AgentFactory:
+    """
+    Factory for creating agents dynamically based on task needs.
+    
+    The AgentFactory allows the central post to spawn new agents
+    as needed during the helix processing, enabling emergent behavior
+    and adaptive team composition.
+    """
+    
+    def __init__(self, helix: "HelixGeometry", llm_client: "LMStudioClient",
+                 token_budget_manager: Optional["TokenBudgetManager"] = None,
+                 random_seed: Optional[int] = None):
+        """
+        Initialize the agent factory.
+        
+        Args:
+            helix: Helix geometry for new agents
+            llm_client: LM Studio client for new agents
+            token_budget_manager: Optional token budget manager
+            random_seed: Seed for random spawn time generation
+        """
+        self.helix = helix
+        self.llm_client = llm_client
+        self.token_budget_manager = token_budget_manager
+        self.random_seed = random_seed
+        self._agent_counter = 0
+        
+        if random_seed is not None:
+            random.seed(random_seed)
+    
+    def create_research_agent(self, domain: str = "general", 
+                            spawn_time_range: Tuple[float, float] = (0.0, 0.3)) -> "LLMAgent":
+        """Create a research agent with random spawn time in specified range."""
+        from agents.specialized_agents import ResearchAgent
+        
+        spawn_time = random.uniform(*spawn_time_range)
+        agent_id = f"dynamic_research_{self._agent_counter:03d}"
+        self._agent_counter += 1
+        
+        return ResearchAgent(
+            agent_id=agent_id,
+            spawn_time=spawn_time,
+            helix=self.helix,
+            llm_client=self.llm_client,
+            research_domain=domain,
+            token_budget_manager=self.token_budget_manager,
+            max_tokens=800
+        )
+    
+    def create_analysis_agent(self, analysis_type: str = "general",
+                            spawn_time_range: Tuple[float, float] = (0.2, 0.7)) -> "LLMAgent":
+        """Create an analysis agent with random spawn time in specified range."""
+        from agents.specialized_agents import AnalysisAgent
+        
+        spawn_time = random.uniform(*spawn_time_range)
+        agent_id = f"dynamic_analysis_{self._agent_counter:03d}"
+        self._agent_counter += 1
+        
+        return AnalysisAgent(
+            agent_id=agent_id,
+            spawn_time=spawn_time,
+            helix=self.helix,
+            llm_client=self.llm_client,
+            analysis_type=analysis_type,
+            token_budget_manager=self.token_budget_manager,
+            max_tokens=800
+        )
+    
+    def create_critic_agent(self, review_focus: str = "general",
+                          spawn_time_range: Tuple[float, float] = (0.5, 0.8)) -> "LLMAgent":
+        """Create a critic agent with random spawn time in specified range."""
+        from agents.specialized_agents import CriticAgent
+        
+        spawn_time = random.uniform(*spawn_time_range)
+        agent_id = f"dynamic_critic_{self._agent_counter:03d}"
+        self._agent_counter += 1
+        
+        return CriticAgent(
+            agent_id=agent_id,
+            spawn_time=spawn_time,
+            helix=self.helix,
+            llm_client=self.llm_client,
+            review_focus=review_focus,
+            token_budget_manager=self.token_budget_manager,
+            max_tokens=800
+        )
+    
+    def create_synthesis_agent(self, output_format: str = "general",
+                             spawn_time_range: Tuple[float, float] = (0.7, 0.95)) -> "LLMAgent":
+        """Create a synthesis agent with random spawn time in specified range."""
+        from agents.specialized_agents import SynthesisAgent
+        
+        spawn_time = random.uniform(*spawn_time_range)
+        agent_id = f"dynamic_synthesis_{self._agent_counter:03d}"
+        self._agent_counter += 1
+        
+        return SynthesisAgent(
+            agent_id=agent_id,
+            spawn_time=spawn_time,
+            helix=self.helix,
+            llm_client=self.llm_client,
+            output_format=output_format,
+            token_budget_manager=self.token_budget_manager,
+            max_tokens=800
+        )
+    
+    def assess_team_needs(self, processed_messages: List[Message], 
+                         current_time: float) -> List["LLMAgent"]:
+        """
+        Assess current team composition and suggest new agents if needed.
+        
+        This implements adaptive team composition based on:
+        - Low confidence results requiring critic agents
+        - Missing domains requiring research agents
+        - Complex analysis requiring specialized analysis agents
+        - Need for alternative synthesis approaches
+        
+        Args:
+            processed_messages: Messages processed so far
+            current_time: Current simulation time
+            
+        Returns:
+            List of recommended new agents to spawn
+        """
+        recommended_agents = []
+        
+        if not processed_messages:
+            return recommended_agents
+        
+        # Analyze recent messages for patterns
+        recent_messages = [msg for msg in processed_messages 
+                          if msg.timestamp > current_time - 0.2]  # Last 0.2 time units
+        
+        if not recent_messages:
+            return recommended_agents
+        
+        # Check for consistent low confidence
+        low_confidence_count = sum(1 for msg in recent_messages
+                                 if msg.content.get("confidence", 1.0) < 0.6)
+        
+        if low_confidence_count >= 2:
+            # Spawn critic agent to improve quality
+            critic = self.create_critic_agent(
+                review_focus="quality_improvement",
+                spawn_time_range=(current_time + 0.1, current_time + 0.3)
+            )
+            recommended_agents.append(critic)
+        
+        # Check for gaps in research domains
+        research_domains = set()
+        for msg in recent_messages:
+            if "research_domain" in msg.content:
+                research_domains.add(msg.content["research_domain"])
+        
+        # If only general research, add technical research
+        if len(research_domains) == 1 and "general" in research_domains:
+            technical_research = self.create_research_agent(
+                domain="technical",
+                spawn_time_range=(current_time + 0.05, current_time + 0.2)
+            )
+            recommended_agents.append(technical_research)
+        
+        # Check for need for alternative synthesis
+        synthesis_count = sum(1 for msg in recent_messages
+                            if msg.content.get("agent_type") == "synthesis")
+        
+        if synthesis_count == 0 and current_time > 0.6:
+            # Late in process but no synthesis yet
+            synthesis = self.create_synthesis_agent(
+                output_format="comprehensive",
+                spawn_time_range=(current_time + 0.1, current_time + 0.25)
+            )
+            recommended_agents.append(synthesis)
+        
+        return recommended_agents

@@ -25,7 +25,7 @@ from dataclasses import dataclass
 
 from agents.agent import Agent, AgentState
 from core.helix_geometry import HelixGeometry
-from llm.lm_studio_client import LMStudioClient, LLMResponse
+from llm.lm_studio_client import LMStudioClient, LLMResponse, RequestPriority
 from llm.token_budget import TokenBudgetManager, TokenAllocation
 from communication.central_post import Message, MessageType
 
@@ -94,7 +94,7 @@ class LLMAgent(Agent):
         
         # Initialize token budget if manager provided
         if self.token_budget_manager:
-            self.token_budget_manager.initialize_agent_budget(agent_id, agent_type)
+            self.token_budget_manager.initialize_agent_budget(agent_id, agent_type, max_tokens)
         
         # LLM-specific state
         self.processing_results: List[LLMResult] = []
@@ -105,6 +105,11 @@ class LLMAgent(Agent):
         # Communication state
         self.shared_context: Dict[str, Any] = {}
         self.received_messages: List[Dict[str, Any]] = []
+        
+        # Emergent behavior tracking
+        self.influenced_by: List[str] = []  # Agent IDs that influenced this agent
+        self.influence_strength: Dict[str, float] = {}  # How much each agent influenced this one
+        self.collaboration_history: List[Dict[str, Any]] = []  # History of collaborations
     
     def get_position_info(self, current_time: float) -> Dict[str, float]:
         """
@@ -159,9 +164,13 @@ class LLMAgent(Agent):
     
     def calculate_confidence(self, current_time: float, content: str, stage: int) -> float:
         """
-        Calculate confidence score based on helix position and content quality.
+        Calculate confidence score based on agent type, helix position, and content quality.
         
-        Confidence increases as agents descend the helix (more focused processing).
+        Agent types have different confidence ranges to ensure proper workflow:
+        - Research agents: 0.3-0.6 (gather info, don't make final decisions)
+        - Analysis agents: 0.4-0.7 (process info, prepare for synthesis)
+        - Synthesis agents: 0.6-0.95 (create final output)
+        - Critic agents: 0.5-0.8 (provide feedback)
         
         Args:
             current_time: Current simulation time
@@ -174,18 +183,118 @@ class LLMAgent(Agent):
         position_info = self.get_position_info(current_time)
         depth_ratio = position_info.get("depth_ratio", 0.0)
         
-        # Base confidence increases with depth (more focused = more confident)
-        depth_confidence = depth_ratio * 0.6  # Up to 60% from depth
+        # Base confidence range based on agent type
+        if self.agent_type == "research":
+            # Research agents max out at 0.6 - they gather info, don't make final decisions
+            base_confidence = 0.3 + (depth_ratio * 0.3)  # 0.3-0.6 range
+            max_confidence = 0.6
+        elif self.agent_type == "analysis":
+            # Analysis agents: 0.4-0.7 - process info but don't synthesize
+            base_confidence = 0.4 + (depth_ratio * 0.3)  # 0.4-0.7 range
+            max_confidence = 0.7
+        elif self.agent_type == "synthesis":
+            # Synthesis agents: 0.6-0.95 - create final comprehensive output
+            base_confidence = 0.6 + (depth_ratio * 0.35)  # 0.6-0.95 range
+            max_confidence = 0.95
+        elif self.agent_type == "critic":
+            # Critic agents: 0.5-0.8 - provide feedback and validation
+            base_confidence = 0.5 + (depth_ratio * 0.3)  # 0.5-0.8 range
+            max_confidence = 0.8
+        else:
+            # Default fallback
+            base_confidence = 0.3 + (depth_ratio * 0.4)
+            max_confidence = 0.7
         
-        # Stage confidence increases with multiple processing rounds
-        stage_confidence = min(stage * 0.1, 0.3)  # Up to 30% from stages
+        # Content quality bonus (up to 0.1 additional)
+        content_quality = self._analyze_content_quality(content)
+        content_bonus = content_quality * 0.1
         
-        # Content quality heuristics
+        # Processing stage bonus (up to 0.05 additional)
+        stage_bonus = min(stage * 0.005, 0.05)
+        
+        # Historical consistency bonus (up to 0.05 additional)
+        consistency_bonus = self._calculate_consistency_bonus() * 0.05
+        
+        total_confidence = base_confidence + content_bonus + stage_bonus + consistency_bonus
+        return min(max(total_confidence, 0.0), max_confidence)
+    
+    def _analyze_content_quality(self, content: str) -> float:
+        """
+        Analyze content quality using multiple heuristics.
+        
+        Args:
+            content: Content to analyze
+            
+        Returns:
+            Quality score (0.0 to 1.0)
+        """
+        if not content or len(content.strip()) == 0:
+            return 0.0
+        
+        content_lower = content.lower()
+        quality_score = 0.0
+        
+        # Length appropriateness (0.25 weight)
         content_length = len(content)
-        length_score = min(content_length / 500, 0.1)  # Up to 10% for reasonable length
+        if 100 <= content_length <= 2000:
+            length_score = 1.0
+        elif content_length < 100:
+            length_score = content_length / 100.0
+        else:  # Very long content
+            length_score = max(0.3, 2000.0 / content_length)
+        quality_score += length_score * 0.25
         
-        total_confidence = depth_confidence + stage_confidence + length_score
-        return min(total_confidence, 1.0)
+        # Structure indicators (0.25 weight)
+        structure_indicators = [
+            '\n\n' in content,  # Paragraphs
+            '.' in content,     # Sentences
+            any(word in content_lower for word in ['analysis', 'research', 'conclusion', 'summary']),
+            content.count('.') >= 3,  # Multiple sentences
+        ]
+        structure_score = sum(structure_indicators) / len(structure_indicators)
+        quality_score += structure_score * 0.25
+        
+        # Content depth indicators (0.25 weight)
+        depth_indicators = [
+            any(word in content_lower for word in ['because', 'therefore', 'however', 'moreover', 'furthermore']),
+            any(word in content_lower for word in ['data', 'evidence', 'study', 'research', 'analysis']),
+            any(word in content_lower for word in ['consider', 'suggest', 'indicate', 'demonstrate']),
+            len(content.split()) > 50,  # Substantial word count
+        ]
+        depth_score = sum(depth_indicators) / len(depth_indicators)
+        quality_score += depth_score * 0.25
+        
+        # Specificity indicators (0.25 weight)
+        specificity_indicators = [
+            any(char.isdigit() for char in content),  # Contains numbers/data
+            content.count(',') > 2,  # Complex sentences with details
+            any(word in content_lower for word in ['specific', 'particular', 'detail', 'example']),
+            '"' in content or "'" in content,  # Quotes or citations
+        ]
+        specificity_score = sum(specificity_indicators) / len(specificity_indicators)
+        quality_score += specificity_score * 0.25
+        
+        return min(quality_score, 1.0)
+    
+    def _calculate_consistency_bonus(self) -> float:
+        """
+        Calculate consistency bonus based on confidence history stability.
+        
+        Returns:
+            Consistency bonus (0.0 to 1.0)
+        """
+        if len(self._confidence_history) < 3:
+            return 0.5  # Neutral for insufficient data
+        
+        # Calculate confidence variance (lower variance = more consistent)
+        recent_confidences = self._confidence_history[-3:]
+        avg_confidence = sum(recent_confidences) / len(recent_confidences)
+        variance = sum((c - avg_confidence) ** 2 for c in recent_confidences) / len(recent_confidences)
+        
+        # Convert variance to consistency bonus (lower variance = higher bonus)
+        consistency_bonus = max(0.0, 1.0 - (variance * 10))  # Scale variance appropriately
+        
+        return min(consistency_bonus, 1.0)
     
     def create_position_aware_prompt(self, task: LLMTask, current_time: float) -> tuple[str, int]:
         """
@@ -237,9 +346,82 @@ class LLMAgent(Agent):
         
         return enhanced_prompt, stage_token_budget
     
+    async def process_task_with_llm_async(self, task: LLMTask, current_time: float, 
+                                         priority: RequestPriority = RequestPriority.NORMAL) -> LLMResult:
+        """
+        Asynchronously process task using LLM with position-aware prompting.
+        
+        Args:
+            task: Task to process
+            current_time: Current simulation time
+            priority: Request priority for LLM processing
+            
+        Returns:
+            LLM processing result
+        """
+        start_time = time.perf_counter()
+        
+        # Get position-aware prompts, token budget, and temperature
+        system_prompt, stage_token_budget = self.create_position_aware_prompt(task, current_time)
+        temperature = self.get_adaptive_temperature(current_time)
+        position_info = self.get_position_info(current_time)
+        
+        # Ensure stage budget doesn't exceed agent's max_tokens
+        effective_token_budget = min(stage_token_budget, self.max_tokens)
+        
+        # Process with LLM using coordinated token budget (ASYNC)
+        llm_response = await self.llm_client.complete_async(
+            agent_id=self.agent_id,
+            system_prompt=system_prompt,
+            user_prompt=task.description,
+            temperature=temperature,
+            max_tokens=effective_token_budget,
+            priority=priority
+        )
+        
+        end_time = time.perf_counter()
+        processing_time = end_time - start_time
+        
+        # Increment processing stage
+        self.processing_stage += 1
+        
+        # Calculate confidence based on position and content
+        confidence = self.calculate_confidence(current_time, llm_response.content, self.processing_stage)
+        
+        # Record confidence for adaptive progression
+        self.record_confidence(confidence)
+        
+        # Create result
+        result = LLMResult(
+            agent_id=self.agent_id,
+            task_id=task.task_id,
+            content=llm_response.content,
+            position_info=position_info,
+            llm_response=llm_response,
+            processing_time=processing_time,
+            timestamp=time.time(),
+            confidence=confidence,
+            processing_stage=self.processing_stage
+        )
+        
+        # Record token usage with budget manager
+        if self.token_budget_manager:
+            self.token_budget_manager.record_usage(self.agent_id, llm_response.tokens_used)
+        
+        # Update statistics
+        self.processing_results.append(result)
+        self.total_tokens_used += llm_response.tokens_used
+        self.total_processing_time += processing_time
+        
+        logger.info(f"Agent {self.agent_id} processed task {task.task_id} "
+                   f"at depth {position_info.get('depth_ratio', 0):.2f} "
+                   f"in {processing_time:.2f}s (async)")
+        
+        return result
+        
     def process_task_with_llm(self, task: LLMTask, current_time: float) -> LLMResult:
         """
-        Process task using LLM with position-aware prompting.
+        Process task using LLM with position-aware prompting (sync wrapper).
         
         Args:
             task: Task to process
@@ -255,13 +437,16 @@ class LLMAgent(Agent):
         temperature = self.get_adaptive_temperature(current_time)
         position_info = self.get_position_info(current_time)
         
-        # Process with LLM using stage-specific token budget
+        # Ensure stage budget doesn't exceed agent's max_tokens
+        effective_token_budget = min(stage_token_budget, self.max_tokens)
+        
+        # Process with LLM using coordinated token budget (SYNC)
         llm_response = self.llm_client.complete(
             agent_id=self.agent_id,
             system_prompt=system_prompt,
             user_prompt=task.description,
             temperature=temperature,
-            max_tokens=stage_token_budget
+            max_tokens=effective_token_budget
         )
         
         end_time = time.perf_counter()
@@ -272,6 +457,9 @@ class LLMAgent(Agent):
         
         # Calculate confidence based on position and content
         confidence = self.calculate_confidence(current_time, llm_response.content, self.processing_stage)
+        
+        # Record confidence for adaptive progression
+        self.record_confidence(confidence)
         
         # Create result
         result = LLMResult(
@@ -301,9 +489,10 @@ class LLMAgent(Agent):
         
         return result
     
+    # Legacy method alias for backward compatibility
     async def process_task_async(self, task: LLMTask, current_time: float) -> LLMResult:
         """
-        Asynchronously process task using LLM.
+        Asynchronously process task using LLM (legacy method).
         
         Args:
             task: Task to process
@@ -312,37 +501,7 @@ class LLMAgent(Agent):
         Returns:
             LLM processing result
         """
-        start_time = time.perf_counter()
-        
-        system_prompt, stage_token_budget = self.create_position_aware_prompt(task, current_time)
-        temperature = self.get_adaptive_temperature(current_time)
-        position_info = self.get_position_info(current_time)
-        
-        llm_response = await self.llm_client.complete_async(
-            agent_id=self.agent_id,
-            system_prompt=system_prompt,
-            user_prompt=task.description,
-            temperature=temperature
-        )
-        
-        end_time = time.perf_counter()
-        processing_time = end_time - start_time
-        
-        result = LLMResult(
-            agent_id=self.agent_id,
-            task_id=task.task_id,
-            content=llm_response.content,
-            position_info=position_info,
-            llm_response=llm_response,
-            processing_time=processing_time,
-            timestamp=time.time()
-        )
-        
-        self.processing_results.append(result)
-        self.total_tokens_used += llm_response.tokens_used
-        self.total_processing_time += processing_time
-        
-        return result
+        return await self.process_task_with_llm_async(task, current_time, RequestPriority.NORMAL)
     
     def share_result_to_central(self, result: LLMResult) -> Message:
         """
@@ -394,9 +553,177 @@ class LLMAgent(Agent):
             key = f"{message.get('agent_type', 'unknown')}_{message.get('agent_id', '')}"
             self.shared_context[key] = message.get("summary", "")
     
+    def influence_agent_behavior(self, other_agent: "LLMAgent", influence_type: str, strength: float) -> None:
+        """
+        Influence another agent's behavior based on collaboration.
+        
+        Args:
+            other_agent: Agent to influence
+            influence_type: Type of influence ('accelerate', 'slow', 'pause', 'redirect')
+            strength: Influence strength (0.0 to 1.0)
+        """
+        if strength <= 0.0 or other_agent.agent_id == self.agent_id:
+            return  # No influence or self-influence
+        
+        # Record the influence relationship
+        if other_agent.agent_id not in self.influence_strength:
+            self.influence_strength[other_agent.agent_id] = 0.0
+        self.influence_strength[other_agent.agent_id] += strength * 0.1  # Cumulative influence
+        
+        if self.agent_id not in other_agent.influenced_by:
+            other_agent.influenced_by.append(self.agent_id)
+        
+        # Apply influence based on type and agent compatibility
+        compatibility = self._calculate_agent_compatibility(other_agent)
+        effective_strength = strength * compatibility
+        
+        if influence_type == "accelerate" and effective_strength > 0.3:
+            # Speed up the other agent if they're compatible
+            current_velocity = other_agent.velocity
+            other_agent.set_velocity_multiplier(min(current_velocity * 1.2, 2.0))
+        
+        elif influence_type == "slow" and effective_strength > 0.4:
+            # Slow down if there's strong incompatibility
+            current_velocity = other_agent.velocity
+            other_agent.set_velocity_multiplier(max(current_velocity * 0.8, 0.3))
+        
+        elif influence_type == "pause" and effective_strength > 0.6:
+            # Pause for consideration of conflicting approaches
+            other_agent.pause_for_duration(0.1 * effective_strength, 0.0)  # Brief pause
+        
+        # Record collaboration
+        self.collaboration_history.append({
+            "timestamp": time.time(),
+            "other_agent": other_agent.agent_id,
+            "influence_type": influence_type,
+            "strength": strength,
+            "effective_strength": effective_strength,
+            "compatibility": compatibility
+        })
+    
+    def _calculate_agent_compatibility(self, other_agent: "LLMAgent") -> float:
+        """
+        Calculate compatibility between this agent and another.
+        
+        Args:
+            other_agent: Other agent to assess compatibility with
+            
+        Returns:
+            Compatibility score (0.0 to 1.0)
+        """
+        # Type compatibility matrix
+        type_compatibility = {
+            ("research", "research"): 0.8,     # Research agents collaborate well
+            ("research", "analysis"): 0.9,    # Research feeds analysis
+            ("research", "synthesis"): 0.7,   # Research provides raw material
+            ("research", "critic"): 0.6,      # Some tension but productive
+            
+            ("analysis", "analysis"): 0.7,    # Analysis agents can complement
+            ("analysis", "synthesis"): 0.9,   # Analysis feeds synthesis
+            ("analysis", "critic"): 0.8,      # Analysis benefits from critique
+            
+            ("synthesis", "synthesis"): 0.5,  # May compete for final output
+            ("synthesis", "critic"): 0.8,     # Synthesis benefits from review
+            
+            ("critic", "critic"): 0.6,        # Critics can disagree
+        }
+        
+        # Get base compatibility from types
+        type_pair = (self.agent_type, other_agent.agent_type)
+        reverse_type_pair = (other_agent.agent_type, self.agent_type)
+        
+        base_compatibility = type_compatibility.get(
+            type_pair, type_compatibility.get(reverse_type_pair, 0.5)
+        )
+        
+        # Modify based on confidence histories
+        if (len(self._confidence_history) > 2 and 
+            len(other_agent._confidence_history) > 2):
+            
+            my_trend = self._confidence_history[-1] - self._confidence_history[-2]
+            their_trend = other_agent._confidence_history[-1] - other_agent._confidence_history[-2]
+            
+            # Agents with similar confidence trends are more compatible
+            trend_similarity = 1.0 - abs(my_trend - their_trend)
+            base_compatibility = (base_compatibility + trend_similarity) / 2
+        
+        return max(0.0, min(base_compatibility, 1.0))
+    
+    def assess_collaboration_opportunities(self, available_agents: List["LLMAgent"], 
+                                         current_time: float) -> List[Dict[str, Any]]:
+        """
+        Assess opportunities for collaboration with other agents.
+        
+        Args:
+            available_agents: List of other agents available for collaboration
+            current_time: Current simulation time
+            
+        Returns:
+            List of collaboration opportunities with recommendations
+        """
+        opportunities = []
+        
+        for other_agent in available_agents:
+            if other_agent.agent_id == self.agent_id or other_agent.state != AgentState.ACTIVE:
+                continue
+            
+            compatibility = self._calculate_agent_compatibility(other_agent)
+            
+            # Skip if compatibility is too low
+            if compatibility < 0.3:
+                continue
+            
+            # Assess potential collaboration based on current states
+            opportunity = {
+                "agent_id": other_agent.agent_id,
+                "agent_type": other_agent.agent_type,
+                "compatibility": compatibility,
+                "recommended_influence": self._recommend_influence_type(other_agent),
+                "confidence": other_agent._confidence_history[-1] if other_agent._confidence_history else 0.5,
+                "distance": abs(self._progress - other_agent._progress)
+            }
+            
+            opportunities.append(opportunity)
+        
+        # Sort by potential value (compatibility * confidence, adjusted for distance)
+        opportunities.sort(key=lambda x: x["compatibility"] * x["confidence"] * (1.0 - x["distance"] * 0.5), reverse=True)
+        
+        return opportunities
+    
+    def _recommend_influence_type(self, other_agent: "LLMAgent") -> str:
+        """
+        Recommend type of influence to apply to another agent.
+        
+        Args:
+            other_agent: Agent to recommend influence for
+            
+        Returns:
+            Recommended influence type
+        """
+        if not other_agent._confidence_history:
+            return "accelerate"  # Default to acceleration for new agents
+        
+        other_confidence = other_agent._confidence_history[-1]
+        my_confidence = self._confidence_history[-1] if self._confidence_history else 0.5
+        
+        # If other agent has low confidence and I have high confidence, accelerate them
+        if other_confidence < 0.5 and my_confidence > 0.7:
+            return "accelerate"
+        
+        # If other agent has much higher confidence, slow down to learn from them
+        elif other_confidence > my_confidence + 0.3:
+            return "slow"
+        
+        # If confidence gap is large and we're incompatible, suggest pause
+        elif abs(other_confidence - my_confidence) > 0.4:
+            return "pause"
+        
+        # Default to acceleration for collaborative growth
+        return "accelerate"
+    
     def get_agent_stats(self) -> Dict[str, Any]:
         """
-        Get agent performance statistics.
+        Get agent performance statistics including emergent behavior metrics.
         
         Returns:
             Dictionary with performance metrics
@@ -413,7 +740,16 @@ class LLMAgent(Agent):
             "average_processing_time": (self.total_processing_time / len(self.processing_results)
                                       if self.processing_results else 0.0),
             "messages_received": len(self.received_messages),
-            "shared_context_items": len(self.shared_context)
+            "shared_context_items": len(self.shared_context),
+            
+            # Emergent behavior metrics
+            "influenced_by_count": len(self.influenced_by),
+            "influences_given": len(self.influence_strength),
+            "total_influence_received": sum(self.influence_strength.values()),
+            "collaboration_count": len(self.collaboration_history),
+            "velocity": self.velocity,
+            "confidence_history": self._confidence_history.copy(),
+            "progression_info": self.get_progression_info()
         }
         
         # Add token budget information if available

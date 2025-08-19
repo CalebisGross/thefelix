@@ -14,10 +14,12 @@ Agent Types:
 """
 
 import time
+import random
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
 
 from agents.llm_agent import LLMAgent, LLMTask, LLMResult
+from agents.agent import generate_spawn_times
 from core.helix_geometry import HelixGeometry
 from llm.lm_studio_client import LMStudioClient
 from llm.token_budget import TokenBudgetManager
@@ -36,7 +38,8 @@ class ResearchAgent(LLMAgent):
     
     def __init__(self, agent_id: str, spawn_time: float, helix: HelixGeometry,
                  llm_client: LMStudioClient, research_domain: str = "general",
-                 token_budget_manager: Optional[TokenBudgetManager] = None):
+                 token_budget_manager: Optional[TokenBudgetManager] = None,
+                 max_tokens: int = 800):
         """
         Initialize research agent.
         
@@ -47,6 +50,7 @@ class ResearchAgent(LLMAgent):
             llm_client: LM Studio client
             research_domain: Specific domain focus (general, technical, creative, etc.)
             token_budget_manager: Optional token budget manager
+            max_tokens: Maximum tokens per processing stage
         """
         super().__init__(
             agent_id=agent_id,
@@ -55,6 +59,7 @@ class ResearchAgent(LLMAgent):
             llm_client=llm_client,
             agent_type="research",
             temperature_range=(0.4, 0.9),  # Higher creativity range
+            max_tokens=max_tokens,
             token_budget_manager=token_budget_manager
         )
         
@@ -86,7 +91,15 @@ Your Research Approach Based on Position:
 """
         
         if depth_ratio < 0.3:
-            base_prompt += """
+            if self.token_budget_manager and self.token_budget_manager.strict_mode:
+                base_prompt += """
+- BULLET POINTS ONLY: 3-5 facts
+- NO explanations or background
+- Sources: names/dates only
+- BREVITY REQUIRED
+"""
+            else:
+                base_prompt += """
 - BROAD EXPLORATION PHASE: Cast a wide net
 - Generate diverse research angles and questions
 - Don't worry about precision - focus on coverage
@@ -94,7 +107,14 @@ Your Research Approach Based on Position:
 - Think creatively and associatively
 """
         elif depth_ratio < 0.7:
-            base_prompt += """
+            if self.token_budget_manager and self.token_budget_manager.strict_mode:
+                base_prompt += """
+- 2-3 SPECIFIC FACTS only
+- Numbers, quotes, key data
+- NO context or explanation
+"""
+            else:
+                base_prompt += """
 - FOCUSED RESEARCH PHASE: Narrow down promising leads
 - Build on earlier findings from other agents
 - Dive deeper into specific aspects that seem relevant
@@ -102,7 +122,14 @@ Your Research Approach Based on Position:
 - Balance breadth with increasing depth
 """
         else:
-            base_prompt += """
+            if self.token_budget_manager and self.token_budget_manager.strict_mode:
+                base_prompt += """
+- FINAL FACTS: 1-2 verified points
+- Citation format: Author (Year)
+- NO elaboration
+"""
+            else:
+                base_prompt += """
 - DEEP RESEARCH PHASE: Precise investigation
 - Focus on specific details and verification
 - Provide authoritative sources and evidence
@@ -178,7 +205,8 @@ class AnalysisAgent(LLMAgent):
     
     def __init__(self, agent_id: str, spawn_time: float, helix: HelixGeometry,
                  llm_client: LMStudioClient, analysis_type: str = "general",
-                 token_budget_manager: Optional[TokenBudgetManager] = None):
+                 token_budget_manager: Optional[TokenBudgetManager] = None,
+                 max_tokens: int = 800):
         """
         Initialize analysis agent.
         
@@ -189,6 +217,7 @@ class AnalysisAgent(LLMAgent):
             llm_client: LM Studio client
             analysis_type: Analysis specialization (general, technical, critical, etc.)
             token_budget_manager: Optional token budget manager
+            max_tokens: Maximum tokens per processing stage
         """
         super().__init__(
             agent_id=agent_id,
@@ -197,6 +226,7 @@ class AnalysisAgent(LLMAgent):
             llm_client=llm_client,
             agent_type="analysis",
             temperature_range=(0.2, 0.7),  # Balanced range
+            max_tokens=max_tokens,
             token_budget_manager=token_budget_manager
         )
         
@@ -235,13 +265,27 @@ Analysis Focus Based on Position:
 """
         
         if depth_ratio < 0.5:
-            base_prompt += """
+            if self.token_budget_manager and self.token_budget_manager.strict_mode:
+                base_prompt += """
+- 2 PATTERNS maximum
+- Numbered list format
+- NO explanations
+"""
+            else:
+                base_prompt += """
 - PATTERN IDENTIFICATION: Look for themes and connections
 - Organize information into categories
 - Identify what's missing or contradictory
 """
         else:
-            base_prompt += """
+            if self.token_budget_manager and self.token_budget_manager.strict_mode:
+                base_prompt += """
+- PRIORITY RANKING: Top 3 insights
+- 1. 2. 3. format
+- NO background
+"""
+            else:
+                base_prompt += """
 - DEEP ANALYSIS: Provide detailed evaluation
 - Prioritize insights by importance
 - Structure findings for final synthesis
@@ -286,7 +330,8 @@ class SynthesisAgent(LLMAgent):
     
     def __init__(self, agent_id: str, spawn_time: float, helix: HelixGeometry,
                  llm_client: LMStudioClient, output_format: str = "general",
-                 token_budget_manager: Optional[TokenBudgetManager] = None):
+                 token_budget_manager: Optional[TokenBudgetManager] = None,
+                 max_tokens: int = 800):
         """
         Initialize synthesis agent.
         
@@ -297,6 +342,7 @@ class SynthesisAgent(LLMAgent):
             llm_client: LM Studio client
             output_format: Desired output format (report, summary, decision, etc.)
             token_budget_manager: Optional token budget manager
+            max_tokens: Maximum tokens per processing stage
         """
         super().__init__(
             agent_id=agent_id,
@@ -305,6 +351,7 @@ class SynthesisAgent(LLMAgent):
             llm_client=llm_client,
             agent_type="synthesis",
             temperature_range=(0.1, 0.4),  # Lower range for precision
+            max_tokens=max_tokens,
             token_budget_manager=token_budget_manager
         )
         
@@ -337,6 +384,8 @@ Your Synthesis Approach:
 - Make final decisions and conclusions
 - Ensure completeness and quality
 - Focus on clarity and actionability
+
+STRICT MODE OVERRIDE: If token budget < 150, provide ONLY final output in 2-3 paragraphs, NO explanations.
 
 Previous Agent Work:
 """
@@ -405,7 +454,8 @@ class CriticAgent(LLMAgent):
     
     def __init__(self, agent_id: str, spawn_time: float, helix: HelixGeometry,
                  llm_client: LMStudioClient, review_focus: str = "general",
-                 token_budget_manager: Optional[TokenBudgetManager] = None):
+                 token_budget_manager: Optional[TokenBudgetManager] = None,
+                 max_tokens: int = 800):
         """
         Initialize critic agent.
         
@@ -416,6 +466,7 @@ class CriticAgent(LLMAgent):
             llm_client: LM Studio client
             review_focus: Review focus (accuracy, completeness, style, logic, etc.)
             token_budget_manager: Optional token budget manager
+            max_tokens: Maximum tokens per processing stage
         """
         super().__init__(
             agent_id=agent_id,
@@ -424,6 +475,7 @@ class CriticAgent(LLMAgent):
             llm_client=llm_client,
             agent_type="critic",
             temperature_range=(0.2, 0.6),  # Balanced but slightly conservative
+            max_tokens=max_tokens,
             token_budget_manager=token_budget_manager
         )
         
@@ -458,6 +510,8 @@ Your Critical Review Approach:
 - Ensure quality standards are maintained
 - Be constructive but thorough in your criticism
 
+STRICT MODE OVERRIDE: If token budget < 100, list ONLY 3 specific issues in numbered format, NO background.
+
 Work to Review:
 """
         
@@ -487,7 +541,8 @@ Be thorough but constructive - the goal is to improve the final output quality.
 
 def create_specialized_team(helix: HelixGeometry, llm_client: LMStudioClient,
                           task_complexity: str = "medium", 
-                          token_budget_manager: Optional[TokenBudgetManager] = None) -> List[LLMAgent]:
+                          token_budget_manager: Optional[TokenBudgetManager] = None,
+                          random_seed: Optional[int] = None) -> List[LLMAgent]:
     """
     Create a balanced team of specialized agents for a task.
     
@@ -496,55 +551,96 @@ def create_specialized_team(helix: HelixGeometry, llm_client: LMStudioClient,
         llm_client: LM Studio client
         task_complexity: Complexity level (simple, medium, complex)
         token_budget_manager: Optional token budget manager for all agents
+        random_seed: Optional seed for spawn time randomization
         
     Returns:
-        List of specialized agents
+        List of specialized agents with randomized spawn times
     """
     if task_complexity == "simple":
-        return _create_simple_team(helix, llm_client, token_budget_manager)
+        return _create_simple_team(helix, llm_client, token_budget_manager, random_seed)
     elif task_complexity == "medium":
-        return _create_medium_team(helix, llm_client, token_budget_manager)
+        return _create_medium_team(helix, llm_client, token_budget_manager, random_seed)
     else:  # complex
-        return _create_complex_team(helix, llm_client, token_budget_manager)
+        return _create_complex_team(helix, llm_client, token_budget_manager, random_seed)
 
 
 def _create_simple_team(helix: HelixGeometry, llm_client: LMStudioClient, 
-                       token_budget_manager: Optional[TokenBudgetManager] = None) -> List[LLMAgent]:
-    """Create team for simple tasks."""
+                       token_budget_manager: Optional[TokenBudgetManager] = None,
+                       random_seed: Optional[int] = None) -> List[LLMAgent]:
+    """Create team for simple tasks with randomized spawn times."""
+    if random_seed is not None:
+        random.seed(random_seed)
+    
+    # Generate random spawn times within appropriate ranges for each agent type
+    research_spawn = random.uniform(0.05, 0.25)  # Research agents spawn early
+    analysis_spawn = random.uniform(0.3, 0.7)    # Analysis agents in middle
+    synthesis_spawn = random.uniform(0.7, 0.95)  # Synthesis agents late
+    
     return [
-        ResearchAgent("research_001", 0.1, helix, llm_client, 
-                     token_budget_manager=token_budget_manager),
-        AnalysisAgent("analysis_001", 0.5, helix, llm_client, 
-                     token_budget_manager=token_budget_manager),
-        SynthesisAgent("synthesis_001", 0.8, helix, llm_client, 
-                      token_budget_manager=token_budget_manager)
+        ResearchAgent("research_001", research_spawn, helix, llm_client, 
+                     token_budget_manager=token_budget_manager, max_tokens=800),
+        AnalysisAgent("analysis_001", analysis_spawn, helix, llm_client, 
+                     token_budget_manager=token_budget_manager, max_tokens=800),
+        SynthesisAgent("synthesis_001", synthesis_spawn, helix, llm_client, 
+                      token_budget_manager=token_budget_manager, max_tokens=800)
     ]
 
 
 def _create_medium_team(helix: HelixGeometry, llm_client: LMStudioClient, 
-                       token_budget_manager: Optional[TokenBudgetManager] = None) -> List[LLMAgent]:
-    """Create team for medium complexity tasks."""
+                       token_budget_manager: Optional[TokenBudgetManager] = None,
+                       random_seed: Optional[int] = None) -> List[LLMAgent]:
+    """Create team for medium complexity tasks with randomized spawn times."""
+    if random_seed is not None:
+        random.seed(random_seed)
+    
+    # Generate random spawn times within appropriate ranges
+    research_spawns = [random.uniform(0.02, 0.2) for _ in range(2)]
+    analysis_spawns = [random.uniform(0.25, 0.65) for _ in range(2)]
+    critic_spawn = random.uniform(0.6, 0.8)
+    synthesis_spawn = random.uniform(0.8, 0.95)
+    
+    # Sort to maintain some ordering within types
+    research_spawns.sort()
+    analysis_spawns.sort()
+    
     return [
-        ResearchAgent("research_001", 0.05, helix, llm_client, "general", token_budget_manager),
-        ResearchAgent("research_002", 0.15, helix, llm_client, "technical", token_budget_manager),
-        AnalysisAgent("analysis_001", 0.4, helix, llm_client, "general", token_budget_manager),
-        AnalysisAgent("analysis_002", 0.6, helix, llm_client, "critical", token_budget_manager),
-        CriticAgent("critic_001", 0.7, helix, llm_client, "accuracy", token_budget_manager),
-        SynthesisAgent("synthesis_001", 0.85, helix, llm_client, "general", token_budget_manager)
+        ResearchAgent("research_001", research_spawns[0], helix, llm_client, "general", token_budget_manager, 800),
+        ResearchAgent("research_002", research_spawns[1], helix, llm_client, "technical", token_budget_manager, 800),
+        AnalysisAgent("analysis_001", analysis_spawns[0], helix, llm_client, "general", token_budget_manager, 800),
+        AnalysisAgent("analysis_002", analysis_spawns[1], helix, llm_client, "critical", token_budget_manager, 800),
+        CriticAgent("critic_001", critic_spawn, helix, llm_client, "accuracy", token_budget_manager, 800),
+        SynthesisAgent("synthesis_001", synthesis_spawn, helix, llm_client, "general", token_budget_manager, 800)
     ]
 
 
-def _create_complex_team(helix: HelixGeometry, llm_client: LMStudioClient) -> List[LLMAgent]:
-    """Create team for complex tasks."""
+def _create_complex_team(helix: HelixGeometry, llm_client: LMStudioClient,
+                        token_budget_manager: Optional[TokenBudgetManager] = None,
+                        random_seed: Optional[int] = None) -> List[LLMAgent]:
+    """Create team for complex tasks with randomized spawn times."""
+    if random_seed is not None:
+        random.seed(random_seed)
+    
+    # Generate random spawn times within appropriate ranges
+    research_spawns = [random.uniform(0.01, 0.25) for _ in range(3)]
+    analysis_spawns = [random.uniform(0.2, 0.7) for _ in range(3)]
+    critic_spawns = [random.uniform(0.6, 0.8) for _ in range(2)]
+    synthesis_spawns = [random.uniform(0.8, 0.98) for _ in range(2)]
+    
+    # Sort to maintain some ordering within types
+    research_spawns.sort()
+    analysis_spawns.sort()
+    critic_spawns.sort()
+    synthesis_spawns.sort()
+    
     return [
-        ResearchAgent("research_001", 0.02, helix, llm_client, "general"),
-        ResearchAgent("research_002", 0.08, helix, llm_client, "technical"),
-        ResearchAgent("research_003", 0.14, helix, llm_client, "creative"),
-        AnalysisAgent("analysis_001", 0.3, helix, llm_client, "general"),
-        AnalysisAgent("analysis_002", 0.45, helix, llm_client, "technical"),
-        AnalysisAgent("analysis_003", 0.6, helix, llm_client, "critical"),
-        CriticAgent("critic_001", 0.65, helix, llm_client, "accuracy"),
-        CriticAgent("critic_002", 0.75, helix, llm_client, "completeness"),
-        SynthesisAgent("synthesis_001", 0.85, helix, llm_client, "report"),
-        SynthesisAgent("synthesis_002", 0.95, helix, llm_client, "executive_summary")
+        ResearchAgent("research_001", research_spawns[0], helix, llm_client, "general", token_budget_manager, 800),
+        ResearchAgent("research_002", research_spawns[1], helix, llm_client, "technical", token_budget_manager, 800),
+        ResearchAgent("research_003", research_spawns[2], helix, llm_client, "creative", token_budget_manager, 800),
+        AnalysisAgent("analysis_001", analysis_spawns[0], helix, llm_client, "general", token_budget_manager, 800),
+        AnalysisAgent("analysis_002", analysis_spawns[1], helix, llm_client, "technical", token_budget_manager, 800),
+        AnalysisAgent("analysis_003", analysis_spawns[2], helix, llm_client, "critical", token_budget_manager, 800),
+        CriticAgent("critic_001", critic_spawns[0], helix, llm_client, "accuracy", token_budget_manager, 800),
+        CriticAgent("critic_002", critic_spawns[1], helix, llm_client, "completeness", token_budget_manager, 800),
+        SynthesisAgent("synthesis_001", synthesis_spawns[0], helix, llm_client, "report", token_budget_manager, 800),
+        SynthesisAgent("synthesis_002", synthesis_spawns[1], helix, llm_client, "executive_summary", token_budget_manager, 800)
     ]

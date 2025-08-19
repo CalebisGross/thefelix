@@ -90,8 +90,9 @@ class HelixGeometry:
         if not (0.0 <= t <= 1.0):
             raise ValueError("t must be between 0 and 1")
         
-        # Calculate height (linear interpolation: t=0 is bottom, t=1 is top)
-        z = self.height * t
+        # Calculate height (linear interpolation: t=0 is top, t=1 is bottom)
+        # Invert so agents start at wide top and descend to narrow bottom
+        z = self.height * (1.0 - t)
         
         # Calculate radius at this height (exponential tapering)
         radius = self.get_radius(z)

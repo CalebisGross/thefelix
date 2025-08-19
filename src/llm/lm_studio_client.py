@@ -11,12 +11,36 @@ provides OpenAI-compatible API endpoints for local language model inference.
 import asyncio
 import time
 import logging
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Union
 from dataclasses import dataclass
+from enum import Enum
 from openai import OpenAI
 import httpx
+from collections import deque
 
 logger = logging.getLogger(__name__)
+
+
+class RequestPriority(Enum):
+    """Priority levels for async requests."""
+    LOW = 1
+    NORMAL = 2
+    HIGH = 3
+    URGENT = 4
+
+
+@dataclass
+class AsyncRequest:
+    """Async request with priority and metadata."""
+    agent_id: str
+    system_prompt: str
+    user_prompt: str
+    temperature: float
+    max_tokens: Optional[int]
+    model: str
+    priority: RequestPriority
+    future: asyncio.Future
+    timestamp: float
 
 
 @dataclass
@@ -45,26 +69,40 @@ class LMStudioClient:
     """
     
     def __init__(self, base_url: str = "http://localhost:1234/v1", 
-                 timeout: float = 120.0):
+                 timeout: float = 120.0, max_concurrent_requests: int = 4):
         """
         Initialize LM Studio client.
         
         Args:
             base_url: LM Studio API endpoint
             timeout: Request timeout in seconds
+            max_concurrent_requests: Maximum concurrent async requests
         """
         self.base_url = base_url
         self.timeout = timeout
+        self.max_concurrent_requests = max_concurrent_requests
+        
+        # Sync client
         self.client = OpenAI(
             base_url=base_url,
             api_key="not-needed",  # LM Studio doesn't require API keys
             timeout=timeout
         )
         
+        # Async client and connection pool
+        self._async_client: Optional[httpx.AsyncClient] = None
+        self._connection_semaphore = asyncio.Semaphore(max_concurrent_requests)
+        
+        # Request queue for async processing
+        self._request_queue: deque[AsyncRequest] = deque()
+        self._queue_processor_task: Optional[asyncio.Task] = None
+        self._is_processing_queue = False
+        
         # Usage tracking
         self.total_tokens = 0
         self.total_requests = 0
         self.total_response_time = 0.0
+        self.concurrent_requests = 0
         
         # Connection state
         self._connection_verified = False
@@ -163,12 +201,93 @@ class LMStudioClient:
             logger.error(f"LLM completion failed for {agent_id}: {e}")
             raise
     
+    async def _ensure_async_client(self) -> httpx.AsyncClient:
+        """Ensure async client is initialized."""
+        if self._async_client is None:
+            limits = httpx.Limits(
+                max_connections=self.max_concurrent_requests,
+                max_keepalive_connections=self.max_concurrent_requests
+            )
+            timeout = httpx.Timeout(self.timeout)
+            
+            self._async_client = httpx.AsyncClient(
+                base_url=self.base_url,
+                timeout=timeout,
+                limits=limits,
+                headers={"Content-Type": "application/json"}
+            )
+        return self._async_client
+    
+    async def _make_async_request(self, agent_id: str, system_prompt: str, 
+                                user_prompt: str, temperature: float = 0.7,
+                                max_tokens: Optional[int] = None,
+                                model: str = "local-model") -> LLMResponse:
+        """Make actual async HTTP request to LM Studio."""
+        async with self._connection_semaphore:
+            start_time = time.perf_counter()
+            self.concurrent_requests += 1
+            
+            try:
+                client = await self._ensure_async_client()
+                
+                messages = [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ]
+                
+                payload = {
+                    "model": model,
+                    "messages": messages,
+                    "temperature": temperature,
+                    "stream": False
+                }
+                
+                if max_tokens:
+                    payload["max_tokens"] = max_tokens
+                
+                response = await client.post("/chat/completions", json=payload)
+                response.raise_for_status()
+                
+                data = response.json()
+                
+                end_time = time.perf_counter()
+                response_time = end_time - start_time
+                
+                # Extract response data
+                content = data["choices"][0]["message"]["content"]
+                tokens_used = data.get("usage", {}).get("total_tokens", 0)
+                
+                # Update usage tracking
+                self.total_tokens += tokens_used
+                self.total_requests += 1
+                self.total_response_time += response_time
+                
+                logger.debug(f"Async LLM completion for {agent_id}: {tokens_used} tokens, "
+                           f"{response_time:.2f}s")
+                
+                return LLMResponse(
+                    content=content,
+                    tokens_used=tokens_used,
+                    response_time=response_time,
+                    model=model,
+                    temperature=temperature,
+                    agent_id=agent_id,
+                    timestamp=time.time()
+                )
+                
+            except Exception as e:
+                logger.error(f"Async LLM completion failed for {agent_id}: {e}")
+                raise
+            finally:
+                self.concurrent_requests -= 1
+    
     async def complete_async(self, agent_id: str, system_prompt: str, 
                            user_prompt: str, temperature: float = 0.7,
                            max_tokens: Optional[int] = None,
-                           model: str = "local-model") -> LLMResponse:
+                           model: str = "local-model",
+                           priority: RequestPriority = RequestPriority.NORMAL) -> LLMResponse:
         """
-        Asynchronous completion request to LM Studio.
+        Asynchronous completion request to LM Studio with priority support.
         
         Args:
             agent_id: Identifier for the requesting agent
@@ -177,18 +296,35 @@ class LMStudioClient:
             temperature: Sampling temperature (0.0-1.0)
             max_tokens: Maximum tokens in response
             model: Model identifier
+            priority: Request priority level
             
         Returns:
             LLMResponse with content and metadata
         """
-        # Run sync method in thread pool for now
-        # TODO: Use true async client when available
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None, 
-            self.complete,
-            agent_id, system_prompt, user_prompt, temperature, max_tokens, model
+        # For high priority requests, execute immediately
+        if priority == RequestPriority.URGENT:
+            return await self._make_async_request(
+                agent_id, system_prompt, user_prompt, temperature, max_tokens, model
+            )
+        
+        # For normal/low priority, use queue system
+        future = asyncio.Future()
+        request = AsyncRequest(
+            agent_id=agent_id,
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            model=model,
+            priority=priority,
+            future=future,
+            timestamp=time.time()
         )
+        
+        self._request_queue.append(request)
+        await self._ensure_queue_processor()
+        
+        return await future
     
     def get_usage_stats(self) -> Dict[str, Any]:
         """
@@ -207,8 +343,81 @@ class LMStudioClient:
             "average_response_time": avg_response_time,
             "average_tokens_per_request": (self.total_tokens / self.total_requests
                                          if self.total_requests > 0 else 0.0),
-            "connection_verified": self._connection_verified
+            "connection_verified": self._connection_verified,
+            "max_concurrent_requests": self.max_concurrent_requests,
+            "current_concurrent_requests": self.concurrent_requests,
+            "queue_size": len(self._request_queue)
         }
+    
+    async def _ensure_queue_processor(self) -> None:
+        """Ensure queue processor task is running."""
+        if self._queue_processor_task is None or self._queue_processor_task.done():
+            self._queue_processor_task = asyncio.create_task(self._process_request_queue())
+    
+    async def _process_request_queue(self) -> None:
+        """Process queued async requests with priority ordering."""
+        if self._is_processing_queue:
+            return
+        
+        self._is_processing_queue = True
+        
+        try:
+            while self._request_queue:
+                # Sort queue by priority (higher priority first)
+                sorted_requests = sorted(self._request_queue, key=lambda r: r.priority.value, reverse=True)
+                
+                # Process up to max_concurrent_requests at once
+                batch_size = min(len(sorted_requests), self.max_concurrent_requests)
+                batch = [sorted_requests[i] for i in range(batch_size)]
+                
+                # Remove processed requests from queue
+                for req in batch:
+                    self._request_queue.remove(req)
+                
+                # Process batch concurrently
+                tasks = []
+                for req in batch:
+                    task = asyncio.create_task(self._execute_queued_request(req))
+                    tasks.append(task)
+                
+                if tasks:
+                    await asyncio.gather(*tasks, return_exceptions=True)
+                
+                # Small delay to prevent busy waiting
+                if not self._request_queue:
+                    break
+                await asyncio.sleep(0.01)
+                    
+        finally:
+            self._is_processing_queue = False
+    
+    async def _execute_queued_request(self, request: AsyncRequest) -> None:
+        """Execute a single queued request."""
+        try:
+            result = await self._make_async_request(
+                request.agent_id,
+                request.system_prompt, 
+                request.user_prompt,
+                request.temperature,
+                request.max_tokens,
+                request.model
+            )
+            request.future.set_result(result)
+        except Exception as e:
+            request.future.set_exception(e)
+    
+    async def close_async(self) -> None:
+        """Close async client and cleanup resources."""
+        if self._async_client:
+            await self._async_client.aclose()
+            self._async_client = None
+        
+        if self._queue_processor_task and not self._queue_processor_task.done():
+            self._queue_processor_task.cancel()
+            try:
+                await self._queue_processor_task
+            except asyncio.CancelledError:
+                pass
     
     def reset_stats(self) -> None:
         """Reset usage statistics."""
@@ -244,28 +453,28 @@ Your Role Based on Position:
         
         if agent_type == "research":
             if depth_ratio < 0.3:
-                base_prompt += "- Conduct broad exploration and gather diverse information\n"
-                base_prompt += "- Cast a wide net and explore multiple angles\n"
-                base_prompt += "- Don't worry about precision yet - focus on coverage\n"
+                base_prompt += "- CONCISE exploration: 3-5 key facts only\n"
+                base_prompt += "- Bullet points preferred\n"
+                base_prompt += "- No explanations, just findings\n"
             else:
-                base_prompt += "- Refine your research based on earlier findings\n"
-                base_prompt += "- Focus on specific aspects that seem most relevant\n"
-                base_prompt += "- Prepare findings for analysis agents\n"
+                base_prompt += "- Specific facts only\n"
+                base_prompt += "- Numbers, dates, quotes\n"
+                base_prompt += "- Prepare 2-3 key points for analysis\n"
         
         elif agent_type == "analysis":
-            base_prompt += "- Process and organize information from research agents\n"
-            base_prompt += "- Identify patterns, contradictions, and key insights\n"
-            base_prompt += "- Structure findings for synthesis agents\n"
+            base_prompt += "- BRIEF analysis: 1-2 key patterns only\n"
+            base_prompt += "- Numbered list format\n"
+            base_prompt += "- No background - just insights\n"
             
         elif agent_type == "synthesis":
-            base_prompt += "- Integrate all previous work into coherent output\n"
-            base_prompt += "- Make final decisions and create deliverables\n"
-            base_prompt += "- Focus on quality and completeness\n"
+            base_prompt += "- FINAL output only - no process description\n"
+            base_prompt += "- Direct, actionable content\n"
+            base_prompt += "- 2-3 paragraphs maximum\n"
             
         elif agent_type == "critic":
-            base_prompt += "- Review and critique work from other agents\n"
-            base_prompt += "- Identify gaps, errors, and improvement opportunities\n"
-            base_prompt += "- Provide quality assurance\n"
+            base_prompt += "- Issues only - no praise\n"
+            base_prompt += "- Specific fixes needed\n"
+            base_prompt += "- 3 points maximum\n"
         
         if task_context:
             base_prompt += f"\nTask Context: {task_context}\n"
@@ -276,6 +485,6 @@ Your Role Based on Position:
         return base_prompt
 
 
-def create_default_client() -> LMStudioClient:
+def create_default_client(max_concurrent_requests: int = 4) -> LMStudioClient:
     """Create LM Studio client with default settings."""
-    return LMStudioClient()
+    return LMStudioClient(max_concurrent_requests=max_concurrent_requests)
