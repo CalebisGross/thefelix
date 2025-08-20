@@ -71,7 +71,7 @@ class LLMAgent(Agent):
     
     def __init__(self, agent_id: str, spawn_time: float, helix: HelixGeometry,
                  llm_client, agent_type: str = "general",
-                 temperature_range: tuple = (0.1, 0.9), max_tokens: int = 500,
+                 temperature_range: Optional[tuple] = None, max_tokens: Optional[int] = None,
                  token_budget_manager: Optional[TokenBudgetManager] = None):
         """
         Initialize LLM agent.
@@ -89,13 +89,41 @@ class LLMAgent(Agent):
         
         self.llm_client = llm_client
         self.agent_type = agent_type
-        self.temperature_range = temperature_range
-        self.max_tokens = max_tokens
+        
+        # FIXED: Set appropriate defaults based on agent type (aligns with TokenBudgetManager)
+        if temperature_range is None:
+            if agent_type == "research":
+                self.temperature_range = (0.4, 0.9)  # High creativity for exploration
+            elif agent_type == "analysis":
+                self.temperature_range = (0.2, 0.7)  # Balanced for processing
+            elif agent_type == "synthesis":
+                self.temperature_range = (0.1, 0.5)  # Lower for focused synthesis
+            elif agent_type == "critic":
+                self.temperature_range = (0.1, 0.6)  # Low-medium for critique
+            else:
+                self.temperature_range = (0.1, 0.9)  # Default fallback
+        else:
+            self.temperature_range = temperature_range
+        
+        if max_tokens is None:
+            if agent_type == "research":
+                self.max_tokens = 200  # Small for bullet points
+            elif agent_type == "analysis":
+                self.max_tokens = 400  # Medium for structured analysis
+            elif agent_type == "synthesis":
+                self.max_tokens = 1000  # Large for comprehensive output
+            elif agent_type == "critic":
+                self.max_tokens = 150  # Small for focused feedback
+            else:
+                self.max_tokens = 500  # Default fallback
+        else:
+            self.max_tokens = max_tokens
+            
         self.token_budget_manager = token_budget_manager
         
         # Initialize token budget if manager provided
         if self.token_budget_manager:
-            self.token_budget_manager.initialize_agent_budget(agent_id, agent_type, max_tokens)
+            self.token_budget_manager.initialize_agent_budget(agent_id, agent_type, self.max_tokens)
         
         # LLM-specific state
         self.processing_results: List[LLMResult] = []

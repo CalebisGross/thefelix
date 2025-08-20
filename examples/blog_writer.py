@@ -596,8 +596,8 @@ def main():
     parser.add_argument("--save-output", help="Save results to file")
     parser.add_argument("--random-seed", type=int, 
                        help="Random seed for reproducibility (omit for truly random)")
-    parser.add_argument("--strict-mode", action="store_true", default=True,
-                       help="Enable strict token budgets for lightweight models (enabled by default)")
+    parser.add_argument("--strict-mode", action="store_true", default=False,
+                       help="Enable strict token budgets for lightweight models (opt-in by default)")
     parser.add_argument("--no-strict-mode", action="store_true",
                        help="Disable strict token budgets (use flexible mode)")
     parser.add_argument("--max-concurrent", type=int, default=4,

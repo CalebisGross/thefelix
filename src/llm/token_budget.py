@@ -60,6 +60,7 @@ class TokenBudgetManager:
         # Track agent budgets
         self._agent_budgets: Dict[str, int] = {}  # remaining budget per agent
         self._agent_total_used: Dict[str, int] = {}  # total used per agent
+        self._agent_types: Dict[str, str] = {}  # agent type mapping
     
     def initialize_agent_budget(self, agent_id: str, agent_type: str, max_tokens_per_stage: int = None) -> int:
         """
@@ -114,6 +115,7 @@ class TokenBudgetManager:
         
         self._agent_budgets[agent_id] = total_budget
         self._agent_total_used[agent_id] = 0
+        self._agent_types[agent_id] = agent_type
         
         return total_budget
     
@@ -136,19 +138,20 @@ class TokenBudgetManager:
         remaining_budget = self._agent_budgets[agent_id]
         total_used = self._agent_total_used[agent_id]
         original_budget = remaining_budget + total_used
+        agent_type = self._agent_types[agent_id]
         
-        # Calculate stage budget based on position and remaining allocation
+        # Calculate stage budget based on agent type, position and remaining allocation
         stage_budget = self._calculate_position_budget(
-            depth_ratio, remaining_budget, stage
+            agent_type, depth_ratio, remaining_budget, stage
         )
         
         # Ensure budget constraints
         stage_budget = max(self.min_budget, min(stage_budget, self.max_budget))
         stage_budget = min(stage_budget, remaining_budget)  # Don't exceed remaining
         
-        # Calculate compression and style guidance
-        compression_ratio = self._calculate_compression_ratio(depth_ratio, stage)
-        style_guidance = self._generate_style_guidance(depth_ratio, stage_budget)
+        # Calculate compression and style guidance based on agent type
+        compression_ratio = self._calculate_compression_ratio(agent_type, depth_ratio, stage)
+        style_guidance = self._generate_style_guidance(agent_type, depth_ratio, stage_budget)
         
         return TokenAllocation(
             stage_budget=stage_budget,
@@ -176,26 +179,47 @@ class TokenBudgetManager:
         # Ensure non-negative budget
         self._agent_budgets[agent_id] = max(0, self._agent_budgets[agent_id])
     
-    def _calculate_position_budget(self, depth_ratio: float, remaining_budget: int,
-                                 stage: int) -> int:
-        """Calculate token budget based on helix position and stage."""
-        # More tokens available at top (exploration), fewer at bottom (synthesis)
-        # Use exponential decay to concentrate budget at top
-        position_factor = math.exp(-depth_ratio * 2.0)  # Decays from 1.0 to ~0.14
+    def _calculate_position_budget(self, agent_type: str, depth_ratio: float, 
+                                 remaining_budget: int, stage: int) -> int:
+        """Calculate token budget based on agent type, helix position and stage."""
+        # FIXED: Token allocation should INCREASE for synthesis agents, not decrease
+        # Different agent types need different token allocations based on their role
         
-        # Distribute remaining budget across estimated remaining stages
-        # Agents typically need 2-5 more stages depending on depth
-        estimated_remaining_stages = max(1, int((1.0 - depth_ratio) * 5) + 1)
+        # Agent-type-specific base budgets (corrects the inverted allocation)
+        if agent_type == "research":
+            # Research agents: Small fixed budget for bullet points
+            base_budget = 150
+            position_factor = 1.0  # Constant allocation
+        elif agent_type == "analysis":
+            # Analysis agents: Medium budget that grows slightly with depth  
+            base_budget = 250
+            position_factor = 0.8 + (depth_ratio * 0.4)  # 0.8 to 1.2
+        elif agent_type == "synthesis":
+            # Synthesis agents: Large budget that grows significantly with depth
+            base_budget = 400
+            position_factor = 0.6 + (depth_ratio * 0.8)  # 0.6 to 1.4
+        elif agent_type == "critic":
+            # Critic agents: Small fixed budget for focused feedback
+            base_budget = 100
+            position_factor = 1.0  # Constant allocation
+        else:
+            # Default fallback
+            base_budget = 300
+            position_factor = 1.0
         
-        # Calculate base allocation with position weighting
-        base_allocation = remaining_budget / estimated_remaining_stages
-        stage_budget = int(base_allocation * (1.0 + position_factor))
+        # Calculate budget with position factor
+        stage_budget = int(base_budget * position_factor)
+        
+        # Respect remaining budget constraints
+        estimated_remaining_stages = max(1, int((1.0 - depth_ratio) * 3) + 1)
+        max_from_remaining = remaining_budget // estimated_remaining_stages
+        stage_budget = min(stage_budget, max_from_remaining)
         
         # Apply progressive reduction for strict mode
         if self.strict_mode:
             stage_budget = self._apply_progressive_reduction(stage_budget, stage)
         
-        return stage_budget
+        return max(self.min_budget, stage_budget)
     
     def _apply_progressive_reduction(self, stage_budget: int, stage: int) -> int:
         """Apply progressive token reduction based on stage number."""
@@ -211,47 +235,64 @@ class TokenBudgetManager:
         
         return int(stage_budget * reduction_factor)
     
-    def _calculate_compression_ratio(self, depth_ratio: float, stage: int) -> float:
-        """Calculate suggested compression ratio for content refinement."""
-        # Higher compression as agents descend (more focused output)
-        base_compression = 0.3 + (depth_ratio * 0.5)  # 0.3 to 0.8 range
+    def _calculate_compression_ratio(self, agent_type: str, depth_ratio: float, stage: int) -> float:
+        """Calculate suggested compression ratio for content refinement based on agent type."""
+        # FIXED: Synthesis agents should have LOWER compression (need more space)
+        if agent_type == "research":
+            # Research agents always highly compressed (bullet points)
+            base_compression = 0.7
+        elif agent_type == "analysis":
+            # Analysis agents moderately compressed (structured lists)
+            base_compression = 0.5 + (depth_ratio * 0.2)  # 0.5 to 0.7
+        elif agent_type == "synthesis":
+            # Synthesis agents LESS compressed (need space for integration)
+            base_compression = 0.1 + (depth_ratio * 0.2)  # 0.1 to 0.3 (MUCH lower)
+        elif agent_type == "critic":
+            # Critic agents highly compressed (focused feedback)
+            base_compression = 0.8
+        else:
+            # Default fallback
+            base_compression = 0.5
         
-        # Increase compression with processing stages
-        stage_factor = min(stage * 0.05, 0.2)  # Up to 20% additional compression
+        # Slight increase with processing stages (but much less for synthesis)
+        if agent_type == "synthesis":
+            stage_factor = min(stage * 0.02, 0.1)  # Very small increase for synthesis
+        else:
+            stage_factor = min(stage * 0.05, 0.2)  # Normal increase for others
         
         return min(base_compression + stage_factor, 0.9)
     
-    def _generate_style_guidance(self, depth_ratio: float, token_budget: int) -> str:
-        """Generate style guidance based on position and budget."""
+    def _generate_style_guidance(self, agent_type: str, depth_ratio: float, token_budget: int) -> str:
+        """Generate style guidance based on agent type, position and budget."""
         # Convert tokens to approximate word count (1 token ≈ 0.75 words)
         word_limit = int(token_budget * 0.75)
         
-        if self.strict_mode:
-            # Strict mode: Enforce extreme conciseness
-            if depth_ratio < 0.3:
-                style = "concise exploratory"
-                detail_level = "bullet points with key findings only"
-            elif depth_ratio < 0.7:
-                style = "focused analytical"
-                detail_level = "numbered list of main insights"
-            else:
-                style = "extremely concise synthesis"
-                detail_level = "final conclusions in 2-3 sentences"
-            
-            return f"⚠️ HARD LIMIT: {token_budget} tokens ({word_limit} words) MAX - OUTPUT WILL BE CUT OFF IF EXCEEDED! Use {style} format: {detail_level}. COUNT YOUR WORDS AND STAY UNDER {word_limit}!"
+        # FIXED: Agent-type-specific guidance that matches their role
+        if agent_type == "research":
+            style = "bullet points"
+            detail_level = "5-10 factual bullet points with sources"
+            format_example = "• Fact 1 (Source)\n• Fact 2 (Source)"
+        elif agent_type == "analysis":
+            style = "structured analysis"
+            detail_level = "numbered insights with connections"
+            format_example = "1. Key insight\n2. Connection to other data\n3. Implications"
+        elif agent_type == "synthesis":
+            style = "comprehensive narrative"
+            detail_level = "complete output with introduction, body, and conclusion"
+            format_example = "Introduction paragraph, main content with sections, conclusion"
+        elif agent_type == "critic":
+            style = "focused critique"
+            detail_level = "specific feedback points with suggestions"
+            format_example = "Strengths: ...\nWeaknesses: ...\nSuggestions: ..."
         else:
-            # Original flexible guidance with word count awareness
-            if depth_ratio < 0.3:
-                style = "exploratory and comprehensive"
-                detail_level = "detailed analysis with examples"
-            elif depth_ratio < 0.7:
-                style = "analytical and focused"
-                detail_level = "clear conclusions with supporting evidence"
-            else:
-                style = "concise and decisive"
-                detail_level = "key insights and actionable recommendations"
-            
-            return f"TARGET: ~{token_budget} tokens (~{word_limit} words). Provide {style} response with {detail_level}. Aim for approximately {word_limit} words."
+            style = "structured response"
+            detail_level = "clear organization with main points"
+            format_example = "Main points with supporting details"
+        
+        if self.strict_mode:
+            return f"⚠️ HARD LIMIT: {token_budget} tokens ({word_limit} words) MAX - OUTPUT WILL BE CUT OFF IF EXCEEDED! Use {style} format: {detail_level}. Format: {format_example}. COUNT YOUR WORDS AND STAY UNDER {word_limit}!"
+        else:
+            return f"TARGET: ~{token_budget} tokens (~{word_limit} words). Use {style} format: {detail_level}. Example structure: {format_example}. Aim for approximately {word_limit} words."
     
     def get_agent_status(self, agent_id: str) -> Optional[Dict[str, Any]]:
         """Get current budget status for an agent."""

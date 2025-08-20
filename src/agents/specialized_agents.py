@@ -39,7 +39,7 @@ class ResearchAgent(LLMAgent):
     def __init__(self, agent_id: str, spawn_time: float, helix: HelixGeometry,
                  llm_client: LMStudioClient, research_domain: str = "general",
                  token_budget_manager: Optional[TokenBudgetManager] = None,
-                 max_tokens: int = 800):
+                 max_tokens: Optional[int] = None):
         """
         Initialize research agent.
         
@@ -58,7 +58,7 @@ class ResearchAgent(LLMAgent):
             helix=helix,
             llm_client=llm_client,
             agent_type="research",
-            temperature_range=(0.4, 0.9),  # Higher creativity range
+            temperature_range=None,  # Use LLMAgent defaults
             max_tokens=max_tokens,
             token_budget_manager=token_budget_manager
         )
@@ -74,7 +74,7 @@ class ResearchAgent(LLMAgent):
         
         # Get token allocation if budget manager is available
         token_allocation = None
-        stage_token_budget = 600  # Default for research agents
+        stage_token_budget = self.max_tokens  # Use agent's max_tokens
         
         if self.token_budget_manager:
             token_allocation = self.token_budget_manager.calculate_stage_allocation(
@@ -206,7 +206,7 @@ class AnalysisAgent(LLMAgent):
     def __init__(self, agent_id: str, spawn_time: float, helix: HelixGeometry,
                  llm_client: LMStudioClient, analysis_type: str = "general",
                  token_budget_manager: Optional[TokenBudgetManager] = None,
-                 max_tokens: int = 800):
+                 max_tokens: Optional[int] = None):
         """
         Initialize analysis agent.
         
@@ -225,7 +225,7 @@ class AnalysisAgent(LLMAgent):
             helix=helix,
             llm_client=llm_client,
             agent_type="analysis",
-            temperature_range=(0.2, 0.7),  # Balanced range
+            temperature_range=None,  # Use LLMAgent defaults
             max_tokens=max_tokens,
             token_budget_manager=token_budget_manager
         )
@@ -241,7 +241,7 @@ class AnalysisAgent(LLMAgent):
         
         # Get token allocation if budget manager is available
         token_allocation = None
-        stage_token_budget = 500  # Default for analysis agents
+        stage_token_budget = self.max_tokens  # Use agent's max_tokens
         
         if self.token_budget_manager:
             token_allocation = self.token_budget_manager.calculate_stage_allocation(
@@ -331,7 +331,7 @@ class SynthesisAgent(LLMAgent):
     def __init__(self, agent_id: str, spawn_time: float, helix: HelixGeometry,
                  llm_client: LMStudioClient, output_format: str = "general",
                  token_budget_manager: Optional[TokenBudgetManager] = None,
-                 max_tokens: int = 800):
+                 max_tokens: Optional[int] = None):
         """
         Initialize synthesis agent.
         
@@ -350,7 +350,7 @@ class SynthesisAgent(LLMAgent):
             helix=helix,
             llm_client=llm_client,
             agent_type="synthesis",
-            temperature_range=(0.1, 0.4),  # Lower range for precision
+            temperature_range=None,  # Use LLMAgent defaults
             max_tokens=max_tokens,
             token_budget_manager=token_budget_manager
         )
@@ -365,7 +365,7 @@ class SynthesisAgent(LLMAgent):
         
         # Get token allocation if budget manager is available
         token_allocation = None
-        stage_token_budget = 400  # Default for synthesis agents (more focused)
+        stage_token_budget = self.max_tokens  # Use agent's max_tokens
         
         if self.token_budget_manager:
             token_allocation = self.token_budget_manager.calculate_stage_allocation(
@@ -455,7 +455,7 @@ class CriticAgent(LLMAgent):
     def __init__(self, agent_id: str, spawn_time: float, helix: HelixGeometry,
                  llm_client: LMStudioClient, review_focus: str = "general",
                  token_budget_manager: Optional[TokenBudgetManager] = None,
-                 max_tokens: int = 800):
+                 max_tokens: Optional[int] = None):
         """
         Initialize critic agent.
         
@@ -474,7 +474,7 @@ class CriticAgent(LLMAgent):
             helix=helix,
             llm_client=llm_client,
             agent_type="critic",
-            temperature_range=(0.2, 0.6),  # Balanced but slightly conservative
+            temperature_range=None,  # Use LLMAgent defaults
             max_tokens=max_tokens,
             token_budget_manager=token_budget_manager
         )
@@ -490,7 +490,7 @@ class CriticAgent(LLMAgent):
         
         # Get token allocation if budget manager is available
         token_allocation = None
-        stage_token_budget = 450  # Default for critic agents
+        stage_token_budget = self.max_tokens  # Use agent's max_tokens
         
         if self.token_budget_manager:
             token_allocation = self.token_budget_manager.calculate_stage_allocation(
