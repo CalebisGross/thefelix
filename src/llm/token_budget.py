@@ -223,6 +223,9 @@ class TokenBudgetManager:
     
     def _generate_style_guidance(self, depth_ratio: float, token_budget: int) -> str:
         """Generate style guidance based on position and budget."""
+        # Convert tokens to approximate word count (1 token ≈ 0.75 words)
+        word_limit = int(token_budget * 0.75)
+        
         if self.strict_mode:
             # Strict mode: Enforce extreme conciseness
             if depth_ratio < 0.3:
@@ -235,9 +238,9 @@ class TokenBudgetManager:
                 style = "extremely concise synthesis"
                 detail_level = "final conclusions in 2-3 sentences"
             
-            return f"STRICT LIMIT: {token_budget} tokens MAX. Use {style} format: {detail_level}. BE EXTREMELY CONCISE."
+            return f"⚠️ HARD LIMIT: {token_budget} tokens ({word_limit} words) MAX - OUTPUT WILL BE CUT OFF IF EXCEEDED! Use {style} format: {detail_level}. COUNT YOUR WORDS AND STAY UNDER {word_limit}!"
         else:
-            # Original flexible guidance
+            # Original flexible guidance with word count awareness
             if depth_ratio < 0.3:
                 style = "exploratory and comprehensive"
                 detail_level = "detailed analysis with examples"
@@ -248,7 +251,7 @@ class TokenBudgetManager:
                 style = "concise and decisive"
                 detail_level = "key insights and actionable recommendations"
             
-            return f"Provide {style} response with {detail_level} (~{token_budget} tokens)"
+            return f"TARGET: ~{token_budget} tokens (~{word_limit} words). Provide {style} response with {detail_level}. Aim for approximately {word_limit} words."
     
     def get_agent_status(self, agent_id: str) -> Optional[Dict[str, Any]]:
         """Get current budget status for an agent."""

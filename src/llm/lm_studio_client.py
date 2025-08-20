@@ -69,7 +69,7 @@ class LMStudioClient:
     """
     
     def __init__(self, base_url: str = "http://localhost:1234/v1", 
-                 timeout: float = 120.0, max_concurrent_requests: int = 4):
+                 timeout: float = 120.0, max_concurrent_requests: int = 4, debug_mode: bool = False):
         """
         Initialize LM Studio client.
         
@@ -77,10 +77,12 @@ class LMStudioClient:
             base_url: LM Studio API endpoint
             timeout: Request timeout in seconds
             max_concurrent_requests: Maximum concurrent async requests
+            debug_mode: Enable verbose debug output
         """
         self.base_url = base_url
         self.timeout = timeout
         self.max_concurrent_requests = max_concurrent_requests
+        self.debug_mode = debug_mode
         
         # Sync client
         self.client = OpenAI(
@@ -161,6 +163,13 @@ class LMStudioClient:
                 {"role": "user", "content": user_prompt}
             ]
             
+            if self.debug_mode:
+                print(f"\n🔍 DEBUG LLM CALL for {agent_id}")
+                print(f"📝 System Prompt:\n{system_prompt}")
+                print(f"🎯 User Prompt:\n{user_prompt}")
+                print(f"🌡️ Temperature: {temperature}, Max Tokens: {max_tokens}")
+                print("━" * 60)
+            
             completion_args = {
                 "model": model,
                 "messages": messages,
@@ -183,6 +192,12 @@ class LMStudioClient:
             self.total_tokens += tokens_used
             self.total_requests += 1
             self.total_response_time += response_time
+            
+            if self.debug_mode:
+                print(f"✅ LLM RESPONSE for {agent_id}")
+                print(f"📄 Content ({len(content)} chars):\n{content}")
+                print(f"📊 Tokens Used: {tokens_used}, Time: {response_time:.2f}s")
+                print("━" * 60)
             
             logger.debug(f"LLM completion for {agent_id}: {tokens_used} tokens, "
                         f"{response_time:.2f}s")
@@ -235,6 +250,13 @@ class LMStudioClient:
                     {"role": "user", "content": user_prompt}
                 ]
                 
+                if self.debug_mode:
+                    print(f"\n🔍 DEBUG ASYNC LLM CALL for {agent_id}")
+                    print(f"📝 System Prompt:\n{system_prompt}")
+                    print(f"🎯 User Prompt:\n{user_prompt}")
+                    print(f"🌡️ Temperature: {temperature}, Max Tokens: {max_tokens}")
+                    print("━" * 60)
+                
                 payload = {
                     "model": model,
                     "messages": messages,
@@ -261,6 +283,12 @@ class LMStudioClient:
                 self.total_tokens += tokens_used
                 self.total_requests += 1
                 self.total_response_time += response_time
+                
+                if self.debug_mode:
+                    print(f"✅ ASYNC LLM RESPONSE for {agent_id}")
+                    print(f"📄 Content ({len(content)} chars):\n{content}")
+                    print(f"📊 Tokens Used: {tokens_used}, Time: {response_time:.2f}s")
+                    print("━" * 60)
                 
                 logger.debug(f"Async LLM completion for {agent_id}: {tokens_used} tokens, "
                            f"{response_time:.2f}s")
@@ -441,7 +469,9 @@ class LMStudioClient:
         depth_ratio = position_info.get("depth_ratio", 0.0)
         radius = position_info.get("radius", 0.0)
         
-        base_prompt = f"""You are a {agent_type} agent in the Felix multi-agent system.
+        base_prompt = f"""🚨 IMPORTANT: You are a {agent_type} agent in the Felix multi-agent system with STRICT OUTPUT LIMITS.
+
+⚠️ CRITICAL INSTRUCTION: Your response will be HARD-LIMITED and CUT OFF if too long. WRITE CONCISELY.
 
 Current Position:
 - Depth: {depth_ratio:.2f} (0.0 = top/start, 1.0 = bottom/end)
@@ -453,34 +483,34 @@ Your Role Based on Position:
         
         if agent_type == "research":
             if depth_ratio < 0.3:
-                base_prompt += "- CONCISE exploration: 3-5 key facts only\n"
-                base_prompt += "- Bullet points preferred\n"
-                base_prompt += "- No explanations, just findings\n"
+                base_prompt += "- MAXIMUM 5 bullet points with key facts ONLY\n"
+                base_prompt += "- NO explanations, NO introductions, NO conclusions\n"
+                base_prompt += "- Raw findings only - be direct\n"
             else:
-                base_prompt += "- Specific facts only\n"
-                base_prompt += "- Numbers, dates, quotes\n"
-                base_prompt += "- Prepare 2-3 key points for analysis\n"
+                base_prompt += "- MAXIMUM 3 specific facts with numbers/dates/quotes\n"
+                base_prompt += "- NO background context or elaboration\n"
+                base_prompt += "- Prepare key points for analysis (concise)\n"
         
         elif agent_type == "analysis":
-            base_prompt += "- BRIEF analysis: 1-2 key patterns only\n"
-            base_prompt += "- Numbered list format\n"
-            base_prompt += "- No background - just insights\n"
+            base_prompt += "- MAXIMUM 2 numbered insights/patterns ONLY\n"
+            base_prompt += "- NO background explanation or context\n"
+            base_prompt += "- Direct analytical findings only\n"
             
         elif agent_type == "synthesis":
-            base_prompt += "- FINAL output only - no process description\n"
-            base_prompt += "- Direct, actionable content\n"
-            base_prompt += "- 2-3 paragraphs maximum\n"
+            base_prompt += "- FINAL output ONLY - NO process description\n"
+            base_prompt += "- MAXIMUM 3 short paragraphs\n"
+            base_prompt += "- Direct, actionable content without fluff\n"
             
         elif agent_type == "critic":
-            base_prompt += "- Issues only - no praise\n"
-            base_prompt += "- Specific fixes needed\n"
-            base_prompt += "- 3 points maximum\n"
+            base_prompt += "- MAXIMUM 3 specific issues/fixes ONLY\n"
+            base_prompt += "- NO praise, NO general comments\n"
+            base_prompt += "- Direct problems and solutions only\n"
         
         if task_context:
             base_prompt += f"\nTask Context: {task_context}\n"
         
-        base_prompt += "\nRemember: Your behavior should adapt to your position on the helix. "
-        base_prompt += "Early positions focus on breadth, later positions focus on depth and precision."
+        base_prompt += "\n🚨 FINAL REMINDER: Your response must be EXTREMELY CONCISE. Your output will be CUT OFF if it exceeds your token limit. "
+        base_prompt += "Early positions focus on breadth, later positions focus on depth and precision. BE BRIEF!"
         
         return base_prompt
 

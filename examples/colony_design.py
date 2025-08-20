@@ -204,7 +204,7 @@ class FelixColonyDesigner:
             target_total_tokens = 2000     # 2000 tokens max
         else:
             target_completion_time = simulation_time * 60  # More relaxed
-            target_total_tokens = 10000
+            target_total_tokens = 15000
         
         print(f"\nStarting PARALLEL geometric orchestration...")
         print(f"Target: {'<30s, <2000 tokens' if self.strict_mode else 'Normal performance'}")

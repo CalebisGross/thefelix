@@ -1,0 +1,54 @@
+{
+  "servers": [
+    {
+      "name": "creative",
+      "url": "http://localhost:1234/v1",
+      "model": "mistral-7b-instruct",
+      "timeout": 120.0,
+      "max_concurrent": 4,
+      "weight": 1.0,
+      "enabled": true,
+      "description": "Fast, creative model for research tasks"
+    },
+    {
+      "name": "analytical", 
+      "url": "http://localhost:1235/v1",
+      "model": "llama-3.1-8b-instruct",
+      "timeout": 120.0,
+      "max_concurrent": 4,
+      "weight": 1.0,
+      "enabled": true,
+      "description": "Balanced model for analysis and critique"
+    },
+    {
+      "name": "synthesis",
+      "url": "http://localhost:1236/v1", 
+      "model": "mixtral-8x7b-instruct",
+      "timeout": 180.0,
+      "max_concurrent": 2,
+      "weight": 1.5,
+      "enabled": true,
+      "description": "High-quality model for synthesis and final output"
+    },
+    {
+      "name": "fallback",
+      "url": "http://localhost:1237/v1",
+      "model": "phi-3-mini-instruct",
+      "timeout": 60.0,
+      "max_concurrent": 8,
+      "weight": 0.5,
+      "enabled": false,
+      "description": "Fast fallback model for high-load scenarios"
+    }
+  ],
+  "agent_mapping": {
+    "research": "creative",
+    "analysis": "analytical", 
+    "synthesis": "synthesis",
+    "critic": "analytical"
+  },
+  "load_balance_strategy": "agent_type_mapping",
+  "health_check_interval": 30.0,
+  "failover_enabled": true,
+  "debug_mode": false
+}

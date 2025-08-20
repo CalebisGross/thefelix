@@ -30,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from core.helix_geometry import HelixGeometry
 from llm.lm_studio_client import LMStudioClient, LMStudioConnectionError, RequestPriority
+from llm.multi_server_client import LMStudioClientPool
 from llm.token_budget import TokenBudgetManager
 from agents.llm_agent import LLMTask
 from agents.specialized_agents import create_specialized_team
@@ -47,19 +48,24 @@ class FelixBlogWriter:
     """
     
     def __init__(self, lm_studio_url: str = "http://localhost:1234/v1", random_seed: int = None,
-                 strict_mode: bool = False, max_concurrent_agents: int = 4):
+                 strict_mode: bool = False, max_concurrent_agents: int = 4, debug_mode: bool = False,
+                 server_config_path: str = None):
         """
         Initialize the Felix blog writing system.
         
         Args:
-            lm_studio_url: LM Studio API endpoint
+            lm_studio_url: LM Studio API endpoint (used if no server_config_path)
             random_seed: Seed for randomization (None for truly random behavior)
             strict_mode: Enable strict token budgets for lightweight models
             max_concurrent_agents: Maximum concurrent agent processing
+            debug_mode: Enable verbose debugging output
+            server_config_path: Path to multi-server configuration file
         """
         self.random_seed = random_seed
         self.strict_mode = strict_mode
         self.max_concurrent_agents = max_concurrent_agents
+        self.debug_mode = debug_mode
+        self.server_config_path = server_config_path
         
         # Create helix geometry (OpenSCAD parameters)
         self.helix = HelixGeometry(
@@ -69,8 +75,17 @@ class FelixBlogWriter:
             turns=33
         )
         
-        # Initialize LLM client
-        self.llm_client = LMStudioClient(base_url=lm_studio_url, max_concurrent_requests=max_concurrent_agents)
+        # Initialize LLM client (single server or multi-server pool)
+        if server_config_path:
+            # Use multi-server client pool
+            self.llm_client = LMStudioClientPool(config_path=server_config_path, debug_mode=debug_mode)
+            print(f"Felix initialized with multi-server configuration: {server_config_path}")
+            if debug_mode:
+                self.llm_client.display_pool_status()
+        else:
+            # Use single LM Studio client
+            self.llm_client = LMStudioClient(base_url=lm_studio_url, max_concurrent_requests=max_concurrent_agents, debug_mode=debug_mode)
+            print(f"Felix initialized with single server: {lm_studio_url}")
         
         # Initialize communication system
         self.central_post = CentralPost(max_agents=20, enable_metrics=True)
@@ -103,15 +118,35 @@ class FelixBlogWriter:
             print("Random seed: None (truly random behavior)")
     
     def test_lm_studio_connection(self) -> bool:
-        """Test connection to LM Studio."""
+        """Test connection to LM Studio server(s)."""
         try:
-            if self.llm_client.test_connection():
-                print("✓ LM Studio connection successful")
-                return True
+            if isinstance(self.llm_client, LMStudioClientPool):
+                # Test all servers in the pool
+                import asyncio
+                health_results = asyncio.run(self.llm_client.health_check_all_servers())
+                
+                healthy_servers = sum(1 for healthy in health_results.values() if healthy)
+                total_servers = len(health_results)
+                
+                if healthy_servers > 0:
+                    print(f"✓ Multi-server pool: {healthy_servers}/{total_servers} servers healthy")
+                    if self.debug_mode:
+                        for server, healthy in health_results.items():
+                            status = "✓" if healthy else "✗"
+                            print(f"  {status} {server}")
+                    return True
+                else:
+                    print(f"✗ Multi-server pool: 0/{total_servers} servers healthy")
+                    return False
             else:
-                print("✗ LM Studio connection failed")
-                return False
-        except LMStudioConnectionError as e:
+                # Test single server
+                if self.llm_client.test_connection():
+                    print("✓ LM Studio connection successful")
+                    return True
+                else:
+                    print("✗ LM Studio connection failed")
+                    return False
+        except Exception as e:
             print(f"✗ LM Studio connection error: {e}")
             return False
     
@@ -187,10 +222,15 @@ class FelixBlogWriter:
             target_total_tokens = 2000     # 2000 tokens max
         else:
             target_completion_time = simulation_time * 60  # More relaxed
-            target_total_tokens = 10000
+            target_total_tokens = 20000
         
         print(f"\nStarting PARALLEL geometric orchestration...")
         print(f"Target: {'<30s, <2000 tokens' if self.strict_mode else 'Normal performance'}")
+        if self.debug_mode:
+            print(f"🔧 Debug mode enabled - showing detailed agent processing")
+            print(f"📋 Team: {[f'{a.agent_id}({a.agent_type})@{a.spawn_time:.2f}' for a in self.agents]}")
+            if isinstance(self.llm_client, LMStudioClientPool):
+                self.llm_client.display_pool_status()
         
         # Run parallel processing
         final_result = await self._run_parallel_processing(
@@ -205,6 +245,8 @@ class FelixBlogWriter:
         await self.central_post.shutdown_async()
         if hasattr(self.llm_client, 'close_async'):
             await self.llm_client.close_async()
+        elif hasattr(self.llm_client, 'close_all'):
+            await self.llm_client.close_all()
         
         # Final statistics
         total_tokens = sum(a.get("tokens_used", 0) for a in results["agents_participated"])
@@ -260,6 +302,12 @@ class FelixBlogWriter:
                 if (agent.can_spawn(current_time) and 
                     agent.state.value == "waiting"):
                     print(f"\n[t={current_time:.2f}] 🌀 Spawning {agent.agent_id} ({agent.agent_type})")
+                    if self.debug_mode:
+                        pos_info = agent.get_position_info(current_time)
+                        print(f"    📍 Position: x={pos_info.get('x', 0):.2f}, y={pos_info.get('y', 0):.2f}, z={pos_info.get('z', 0):.2f}")
+                        print(f"    📐 Radius: {pos_info.get('radius', 0):.2f}, Depth: {pos_info.get('depth_ratio', 0):.2f}")
+                        temp = agent.get_adaptive_temperature(current_time)
+                        print(f"    🌡️  Temperature: {temp:.2f}")
                     agent.spawn(current_time, main_task)
                     ready_agents.append(agent)
                 elif agent.state.value == "active":
@@ -340,6 +388,10 @@ class FelixBlogWriter:
                     simulation_complete = True
                     break
             
+            # Show periodic stats in debug mode
+            if self.debug_mode and current_time % 0.2 < time_step:  # Every 0.2 time units
+                self.display_real_time_stats(results, current_time)
+            
             current_time += time_step
         
         return results["final_output"] if simulation_complete else None
@@ -366,6 +418,18 @@ class FelixBlogWriter:
                 
                 print(f"    ✓ {agent.agent_id} completed (depth: {depth:.2f}, "
                       f"confidence: {result.confidence:.2f}, tokens: {result.llm_response.tokens_used})")
+                
+                if self.debug_mode:
+                    print(f"    🧠 Content preview: {result.content[:100]}...")
+                    if hasattr(agent, '_last_confidence_breakdown'):
+                        breakdown = agent._last_confidence_breakdown
+                        print(f"    📊 Confidence breakdown:")
+                        print(f"        Base ({agent.agent_type}): {breakdown['base_confidence']:.3f}")
+                        print(f"        Content quality: +{breakdown['content_bonus']:.3f}")
+                        print(f"        Stage bonus: +{breakdown['stage_bonus']:.3f}")
+                        print(f"        Consistency: +{breakdown['consistency_bonus']:.3f}")
+                        print(f"        Total: {breakdown['total_before_cap']:.3f} → {breakdown['final_confidence']:.3f} (capped at {breakdown['max_confidence']:.1f})")
+                    print(f"    ⏱️  Processing time: {result.processing_time:.2f}s, Stage: {result.processing_stage}")
                 
                 return {
                     "agent": agent,
@@ -395,6 +459,42 @@ class FelixBlogWriter:
                 successful_results.append(result)
         
         return successful_results
+    
+    def display_real_time_stats(self, results: Dict[str, Any], current_time: float) -> None:
+        """Display real-time statistics during processing."""
+        if not self.debug_mode:
+            return
+            
+        print(f"\n╭─ REAL-TIME STATS (t={current_time:.2f}) ─╮")
+        
+        # Agent statistics
+        active_agents = [a for a in self.agents if a.state.value == "active"]
+        waiting_agents = [a for a in self.agents if a.state.value == "waiting"]
+        completed_agents = [a for a in self.agents if a.state.value == "completed"]
+        
+        print(f"│ Agents: {len(active_agents)} active, {len(waiting_agents)} waiting, {len(completed_agents)} completed")
+        
+        # Token statistics
+        total_tokens = sum(a.get("tokens_used", 0) for a in results["agents_participated"])
+        if hasattr(self.llm_client, 'total_tokens'):
+            llm_total = self.llm_client.total_tokens
+            print(f"│ Tokens: {total_tokens} (session), {llm_total} (LLM total)")
+        else:
+            print(f"│ Tokens: {total_tokens} (session)")
+            
+        # Confidence distribution
+        confidences = [a.get("confidence", 0) for a in results["agents_participated"]]
+        if confidences:
+            avg_conf = sum(confidences) / len(confidences)
+            max_conf = max(confidences)
+            print(f"│ Confidence: avg={avg_conf:.2f}, max={max_conf:.2f}")
+        
+        # Processing timing
+        if hasattr(self.llm_client, 'total_response_time') and self.llm_client.total_requests > 0:
+            avg_time = self.llm_client.total_response_time / self.llm_client.total_requests
+            print(f"│ LLM Timing: {avg_time:.2f}s avg, {self.llm_client.total_requests} requests")
+        
+        print(f"╰{'─'*40}╯")
     
     def display_results(self, results: Dict[str, Any]) -> None:
         """Display session results in a readable format."""
@@ -496,19 +596,30 @@ def main():
     parser.add_argument("--save-output", help="Save results to file")
     parser.add_argument("--random-seed", type=int, 
                        help="Random seed for reproducibility (omit for truly random)")
-    parser.add_argument("--strict-mode", action="store_true",
-                       help="Enable strict token budgets for lightweight models")
+    parser.add_argument("--strict-mode", action="store_true", default=True,
+                       help="Enable strict token budgets for lightweight models (enabled by default)")
+    parser.add_argument("--no-strict-mode", action="store_true",
+                       help="Disable strict token budgets (use flexible mode)")
     parser.add_argument("--max-concurrent", type=int, default=4,
                        help="Maximum concurrent agents (default: 4)")
+    parser.add_argument("--debug", action="store_true",
+                       help="Enable verbose debug output showing LLM calls and agent details")
+    parser.add_argument("--server-config", 
+                       help="Path to multi-server configuration JSON file")
     
     args = parser.parse_args()
     
     # Create blog writer
+    # Handle strict mode logic
+    use_strict_mode = args.strict_mode and not args.no_strict_mode
+    
     writer = FelixBlogWriter(
         lm_studio_url=args.lm_studio_url, 
         random_seed=args.random_seed,
-        strict_mode=args.strict_mode,
-        max_concurrent_agents=args.max_concurrent
+        strict_mode=use_strict_mode,
+        max_concurrent_agents=args.max_concurrent,
+        debug_mode=args.debug,
+        server_config_path=args.server_config
     )
     
     # Test LM Studio connection

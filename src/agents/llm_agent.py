@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from agents.agent import Agent, AgentState
 from core.helix_geometry import HelixGeometry
 from llm.lm_studio_client import LMStudioClient, LLMResponse, RequestPriority
+from llm.multi_server_client import LMStudioClientPool
 from llm.token_budget import TokenBudgetManager, TokenAllocation
 from communication.central_post import Message, MessageType
 
@@ -69,7 +70,7 @@ class LLMAgent(Agent):
     """
     
     def __init__(self, agent_id: str, spawn_time: float, helix: HelixGeometry,
-                 llm_client: LMStudioClient, agent_type: str = "general",
+                 llm_client, agent_type: str = "general",
                  temperature_range: tuple = (0.1, 0.9), max_tokens: int = 500,
                  token_budget_manager: Optional[TokenBudgetManager] = None):
         """
@@ -79,7 +80,7 @@ class LLMAgent(Agent):
             agent_id: Unique identifier for the agent
             spawn_time: Time when agent becomes active (0.0 to 1.0)
             helix: Helix geometry for path calculation
-            llm_client: LM Studio client for LLM inference
+            llm_client: LM Studio client or client pool for LLM inference
             agent_type: Agent specialization (research, analysis, synthesis, critic)
             temperature_range: (min, max) temperature based on helix position
             token_budget_manager: Optional budget manager for adaptive token allocation
@@ -216,6 +217,18 @@ class LLMAgent(Agent):
         consistency_bonus = self._calculate_consistency_bonus() * 0.05
         
         total_confidence = base_confidence + content_bonus + stage_bonus + consistency_bonus
+        
+        # Store debug info for potential display
+        self._last_confidence_breakdown = {
+            "base_confidence": base_confidence,
+            "content_bonus": content_bonus,
+            "stage_bonus": stage_bonus,
+            "consistency_bonus": consistency_bonus,
+            "total_before_cap": total_confidence,
+            "max_confidence": max_confidence,
+            "final_confidence": min(max(total_confidence, 0.0), max_confidence)
+        }
+        
         return min(max(total_confidence, 0.0), max_confidence)
     
     def _analyze_content_quality(self, content: str) -> float:
@@ -370,14 +383,26 @@ class LLMAgent(Agent):
         effective_token_budget = min(stage_token_budget, self.max_tokens)
         
         # Process with LLM using coordinated token budget (ASYNC)
-        llm_response = await self.llm_client.complete_async(
-            agent_id=self.agent_id,
-            system_prompt=system_prompt,
-            user_prompt=task.description,
-            temperature=temperature,
-            max_tokens=effective_token_budget,
-            priority=priority
-        )
+        # Use multi-server client pool if available, otherwise use regular client
+        if isinstance(self.llm_client, LMStudioClientPool):
+            llm_response = await self.llm_client.complete_for_agent_type(
+                agent_type=self.agent_type,
+                agent_id=self.agent_id,
+                system_prompt=system_prompt,
+                user_prompt=task.description,
+                temperature=temperature,
+                max_tokens=effective_token_budget,
+                priority=priority
+            )
+        else:
+            llm_response = await self.llm_client.complete_async(
+                agent_id=self.agent_id,
+                system_prompt=system_prompt,
+                user_prompt=task.description,
+                temperature=temperature,
+                max_tokens=effective_token_budget,
+                priority=priority
+            )
         
         end_time = time.perf_counter()
         processing_time = end_time - start_time
@@ -441,13 +466,29 @@ class LLMAgent(Agent):
         effective_token_budget = min(stage_token_budget, self.max_tokens)
         
         # Process with LLM using coordinated token budget (SYNC)
-        llm_response = self.llm_client.complete(
-            agent_id=self.agent_id,
-            system_prompt=system_prompt,
-            user_prompt=task.description,
-            temperature=temperature,
-            max_tokens=effective_token_budget
-        )
+        # Note: Multi-server client pool requires async, so fall back to first available server
+        if isinstance(self.llm_client, LMStudioClientPool):
+            # For sync calls with pool, use the first available client
+            server_name = self.llm_client.get_server_for_agent_type(self.agent_type)
+            if server_name and server_name in self.llm_client.clients:
+                client = self.llm_client.clients[server_name]
+                llm_response = client.complete(
+                    agent_id=self.agent_id,
+                    system_prompt=system_prompt,
+                    user_prompt=task.description,
+                    temperature=temperature,
+                    max_tokens=effective_token_budget
+                )
+            else:
+                raise RuntimeError(f"No available server for agent type: {self.agent_type}")
+        else:
+            llm_response = self.llm_client.complete(
+                agent_id=self.agent_id,
+                system_prompt=system_prompt,
+                user_prompt=task.description,
+                temperature=temperature,
+                max_tokens=effective_token_budget
+            )
         
         end_time = time.perf_counter()
         processing_time = end_time - start_time

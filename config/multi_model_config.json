@@ -1,0 +1,54 @@
+{
+  "servers": [
+    {
+      "name": "research_fast",
+      "url": "http://127.0.0.1:1234/v1",
+      "model": "qwen/qwen3-4b-2507",
+      "timeout": 120.0,
+      "max_concurrent": 2,
+      "weight": 1.0,
+      "enabled": true,
+      "description": "Fast Qwen 4B model for research tasks - quick exploration and data gathering"
+    },
+    {
+      "name": "thinking_analysis", 
+      "url": "http://127.0.0.1:1234/v1",
+      "model": "qwen/qwen3-4b-thinking-2507",
+      "timeout": 150.0,
+      "max_concurrent": 2,
+      "weight": 1.2,
+      "enabled": true,
+      "description": "Qwen Thinking model for analysis and critique - reasoning focused"
+    },
+    {
+      "name": "synthesis_quality",
+      "url": "http://127.0.0.1:1234/v1", 
+      "model": "google/gemma-3-12b",
+      "timeout": 180.0,
+      "max_concurrent": 1,
+      "weight": 1.5,
+      "enabled": true,
+      "description": "Gemma 12B model for synthesis - high-quality final output generation"
+    }
+  ],
+  "agent_mapping": {
+    "research": "research_fast",
+    "analysis": "thinking_analysis", 
+    "synthesis": "synthesis_quality",
+    "critic": "thinking_analysis"
+  },
+  "load_balance_strategy": "agent_type_mapping",
+  "health_check_interval": 30.0,
+  "failover_enabled": true,
+  "debug_mode": false,
+  "notes": {
+    "setup": "Single LM Studio server with multiple models",
+    "models_required": [
+      "qwen/qwen3-4b-2507",
+      "qwen/qwen3-4b-thinking-2507", 
+      "google/gemma-3-12b"
+    ],
+    "expected_behavior": "Agents use different models but same server endpoint",
+    "performance": "Parallel requests with model switching handled by LM Studio"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "servers": [
+    {
+      "name": "default",
+      "url": "http://localhost:1234/v1",
+      "model": "local-model",
+      "timeout": 120.0,
+      "max_concurrent": 4,
+      "weight": 1.0,
+      "enabled": true,
+      "description": "Single server configuration for comparison"
+    }
+  ],
+  "agent_mapping": {
+    "research": "default",
+    "analysis": "default",
+    "synthesis": "default", 
+    "critic": "default"
+  },
+  "load_balance_strategy": "agent_type_mapping",
+  "health_check_interval": 30.0,
+  "failover_enabled": false,
+  "debug_mode": false
+}
