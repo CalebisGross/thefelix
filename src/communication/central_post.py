@@ -39,6 +39,8 @@ from memory.knowledge_store import KnowledgeStore, KnowledgeEntry, KnowledgeType
 from memory.task_memory import TaskMemory, TaskPattern, TaskOutcome
 from memory.context_compression import ContextCompressor, CompressionStrategy
 
+# Dynamic spawning imports - moved to avoid circular imports
+
 if TYPE_CHECKING:
     from agents.llm_agent import LLMAgent
     from core.helix_geometry import HelixGeometry
@@ -828,7 +830,8 @@ class AgentFactory:
     
     def __init__(self, helix: "HelixGeometry", llm_client: "LMStudioClient",
                  token_budget_manager: Optional["TokenBudgetManager"] = None,
-                 random_seed: Optional[int] = None):
+                 random_seed: Optional[int] = None, enable_dynamic_spawning: bool = True,
+                 max_agents: int = 15, token_budget_limit: int = 10000):
         """
         Initialize the agent factory.
         
@@ -837,12 +840,29 @@ class AgentFactory:
             llm_client: LM Studio client for new agents
             token_budget_manager: Optional token budget manager
             random_seed: Seed for random spawn time generation
+            enable_dynamic_spawning: Enable intelligent agent spawning
+            max_agents: Maximum number of agents for dynamic spawning
+            token_budget_limit: Token budget limit for dynamic spawning
         """
         self.helix = helix
         self.llm_client = llm_client
         self.token_budget_manager = token_budget_manager
         self.random_seed = random_seed
         self._agent_counter = 0
+        self.enable_dynamic_spawning = enable_dynamic_spawning
+        
+        # Initialize dynamic spawning system if enabled
+        if enable_dynamic_spawning:
+            # Import here to avoid circular imports
+            from agents.dynamic_spawning import DynamicSpawning
+            self.dynamic_spawner = DynamicSpawning(
+                agent_factory=self,
+                confidence_threshold=0.7,
+                max_agents=max_agents,
+                token_budget_limit=token_budget_limit
+            )
+        else:
+            self.dynamic_spawner = None
         
         if random_seed is not None:
             random.seed(random_seed)
@@ -924,22 +944,41 @@ class AgentFactory:
         )
     
     def assess_team_needs(self, processed_messages: List[Message], 
-                         current_time: float) -> List["LLMAgent"]:
+                         current_time: float, current_agents: Optional[List["LLMAgent"]] = None) -> List["LLMAgent"]:
         """
         Assess current team composition and suggest new agents if needed.
         
-        This implements adaptive team composition based on:
-        - Low confidence results requiring critic agents
-        - Missing domains requiring research agents
-        - Complex analysis requiring specialized analysis agents
-        - Need for alternative synthesis approaches
+        Enhanced with DynamicSpawning system that provides:
+        - Confidence monitoring with trend analysis
+        - Content analysis for contradictions and gaps
+        - Team size optimization based on task complexity
+        - Resource-aware spawning decisions
+        
+        Falls back to basic heuristics if dynamic spawning is disabled.
         
         Args:
             processed_messages: Messages processed so far
             current_time: Current simulation time
+            current_agents: List of currently active agents
             
         Returns:
             List of recommended new agents to spawn
+        """
+        # Use dynamic spawning if enabled and available
+        if self.enable_dynamic_spawning and self.dynamic_spawner:
+            return self.dynamic_spawner.analyze_and_spawn(
+                processed_messages, current_agents or [], current_time
+            )
+        
+        # Fallback to basic heuristics for backward compatibility
+        return self._assess_team_needs_basic(processed_messages, current_time)
+    
+    def _assess_team_needs_basic(self, processed_messages: List[Message], 
+                                current_time: float) -> List["LLMAgent"]:
+        """
+        Basic team assessment for backward compatibility.
+        
+        This implements simple heuristics when dynamic spawning is disabled.
         """
         recommended_agents = []
         
@@ -992,3 +1031,21 @@ class AgentFactory:
             recommended_agents.append(synthesis)
         
         return recommended_agents
+    
+    def get_spawning_summary(self) -> Dict[str, Any]:
+        """
+        Get summary of dynamic spawning activity.
+        
+        Returns:
+            Dictionary with spawning statistics and activity
+        """
+        if self.enable_dynamic_spawning and self.dynamic_spawner:
+            return self.dynamic_spawner.get_spawning_summary()
+        else:
+            return {
+                "dynamic_spawning_enabled": False,
+                "total_spawns": 0,
+                "spawns_by_type": {},
+                "average_priority": 0.0,
+                "spawning_reasons": []
+            }

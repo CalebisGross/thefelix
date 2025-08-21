@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from collections import deque, defaultdict
 
-from communication.central_post import Message, MessageType
+# Import Message and MessageType only when needed to avoid circular imports
 
 
 class ConfidenceTrend(Enum):
@@ -104,7 +104,7 @@ class ConfidenceMonitor:
         self._last_trend_calculation = 0.0
         self._cached_metrics: Optional[ConfidenceMetrics] = None
     
-    def record_confidence(self, message: Message) -> None:
+    def record_confidence(self, message: Any) -> None:
         """
         Record confidence from agent message.
         
@@ -345,7 +345,7 @@ class ContentAnalyzer:
             "analytical": ["analysis", "statistics", "metrics", "data", "measurement"]
         }
     
-    def analyze_content(self, messages: List[Message]) -> ContentAnalysis:
+    def analyze_content(self, messages: List[Any]) -> ContentAnalysis:
         """
         Analyze messages for content issues requiring agent spawning.
         
@@ -665,7 +665,7 @@ class DynamicSpawning:
         self._last_analysis_time = 0.0
         self._spawning_history: List[SpawningDecision] = []
     
-    def analyze_and_spawn(self, processed_messages: List[Message], 
+    def analyze_and_spawn(self, processed_messages: List[Any], 
                          current_agents: List[Any], current_time: float) -> List[Any]:
         """
         Main method to analyze team needs and spawn agents if necessary.

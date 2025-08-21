@@ -19,6 +19,7 @@ from typing import Dict, List, Optional, Tuple, Any
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 import math
+import uuid
 
 
 class PromptContext(Enum):
@@ -489,6 +490,70 @@ class PromptOptimizer:
                 self._trigger_optimization(prompt_id, prompt_text, metrics.context)
                 
         return {'status': 'recorded', 'prompt_performance': performance}
+    
+    def optimize_prompt(self, base_prompt: str, context: Dict[str, Any]) -> 'OptimizedPrompt':
+        """Optimize a prompt for better performance.
+        
+        Args:
+            base_prompt: The original prompt text to optimize
+            context: Context dictionary with optimization parameters
+            
+        Returns:
+            OptimizedPrompt object with improved prompt text and metadata
+        """
+        prompt_id = f"optimized_{str(uuid.uuid4())[:8]}"
+        
+        # Basic optimization - add structure and clarity
+        optimized_text = base_prompt
+        if "domain" in context and context["domain"] == "technical":
+            optimized_text += "\n\nProvide a structured, technical response with clear examples."
+        elif "task_type" in context and context["task_type"] == "analysis":
+            optimized_text += "\n\nPlease analyze systematically and provide evidence-based conclusions."
+        else:
+            optimized_text += "\n\nProvide a clear, well-structured response."
+            
+        return OptimizedPrompt(
+            prompt_id=prompt_id,
+            prompt_text=optimized_text,
+            context=context,
+            optimization_applied=True
+        )
+    
+    def record_prompt_performance(self, prompt_id: str, success_rate: float, 
+                                quality_metrics: Dict[str, float], context: Dict[str, Any]):
+        """Record performance metrics for a prompt.
+        
+        Args:
+            prompt_id: Unique identifier for the prompt
+            success_rate: Success rate (0.0-1.0)
+            quality_metrics: Dictionary of quality metrics
+            context: Context information
+        """
+        # Create synthetic PromptMetrics from the provided data
+        metrics = PromptMetrics(
+            output_quality=quality_metrics.get('coherence', success_rate),
+            confidence=success_rate,
+            completion_time=2.0,  # Default reasonable time
+            token_efficiency=success_rate * 0.8,
+            truncation_occurred=False,
+            context=PromptContext.GENERAL  # Default context
+        )
+        
+        self.metrics_tracker.record_metrics(prompt_id, metrics)
+    
+    def get_prompt_performance(self, prompt_id: str) -> List[Dict[str, Any]]:
+        """Get performance history for a prompt.
+        
+        Args:
+            prompt_id: The prompt identifier
+            
+        Returns:
+            List of performance records
+        """
+        performance = self.metrics_tracker.get_prompt_performance(prompt_id)
+        if performance:
+            return [performance]  # Return as list for compatibility
+        return []
         
     def _trigger_optimization(self, prompt_id: str, prompt_text: str, context: PromptContext):
         """Trigger optimization for a poorly performing prompt."""
@@ -557,3 +622,13 @@ class PromptOptimizer:
                            'good' if overall_performance > 0.6 else
                            'needs_improvement'
         }
+
+
+@dataclass
+class OptimizedPrompt:
+    """Represents an optimized prompt with metadata."""
+    prompt_id: str
+    prompt_text: str
+    context: Dict[str, Any]
+    optimization_applied: bool = True
+    timestamp: float = field(default_factory=time.time)

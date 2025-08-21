@@ -30,6 +30,7 @@ from llm.multi_server_client import LMStudioClientPool
 from llm.token_budget import TokenBudgetManager, TokenAllocation
 from communication.central_post import Message, MessageType
 from pipeline.chunking import ChunkedResult, ProgressiveProcessor, ContentSummarizer
+from agents.prompt_optimization import PromptOptimizer, PromptMetrics, PromptContext
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +150,8 @@ class LLMAgent(Agent):
     def __init__(self, agent_id: str, spawn_time: float, helix: HelixGeometry,
                  llm_client, agent_type: str = "general",
                  temperature_range: Optional[tuple] = None, max_tokens: Optional[int] = None,
-                 token_budget_manager: Optional[TokenBudgetManager] = None):
+                 token_budget_manager: Optional[TokenBudgetManager] = None,
+                 prompt_optimizer: Optional[PromptOptimizer] = None):
         """
         Initialize LLM agent.
         
@@ -161,6 +163,7 @@ class LLMAgent(Agent):
             agent_type: Agent specialization (research, analysis, synthesis, critic)
             temperature_range: (min, max) temperature based on helix position
             token_budget_manager: Optional budget manager for adaptive token allocation
+            prompt_optimizer: Optional prompt optimization system for learning
         """
         super().__init__(agent_id, spawn_time, helix)
         
@@ -197,6 +200,7 @@ class LLMAgent(Agent):
             self.max_tokens = max_tokens
             
         self.token_budget_manager = token_budget_manager
+        self.prompt_optimizer = prompt_optimizer
         
         # Initialize token budget if manager provided
         if self.token_budget_manager:
@@ -417,6 +421,7 @@ class LLMAgent(Agent):
     def create_position_aware_prompt(self, task: LLMTask, current_time: float) -> tuple[str, int]:
         """
         Create system prompt that adapts to agent's helix position with token budget.
+        Enhanced with prompt optimization that learns from performance metrics.
         
         Args:
             task: Task to process
@@ -427,6 +432,9 @@ class LLMAgent(Agent):
         """
         position_info = self.get_position_info(current_time)
         depth_ratio = position_info.get("depth_ratio", 0.0)
+        
+        # Determine prompt context based on agent type and position
+        prompt_context = self._get_prompt_context(depth_ratio)
         
         # Get token allocation if budget manager is available
         token_allocation = None
@@ -445,12 +453,28 @@ class LLMAgent(Agent):
             for key, value in self.shared_context.items():
                 context_summary += f"- {key}: {value}\n"
         
+        # Generate prompt ID for optimization tracking
+        prompt_id = f"{self.agent_type}_{prompt_context.value}_stage_{self.processing_stage}"
+        
+        # Check if we have an optimized prompt available
+        optimized_prompt = None
+        if self.prompt_optimizer:
+            recommendations = self.prompt_optimizer.get_optimization_recommendations(prompt_context)
+            if recommendations.get("best_prompts"):
+                best_prompt = recommendations["best_prompts"][0]
+                if best_prompt[1] > 0.7:  # High performance threshold
+                    optimized_prompt = best_prompt[0]
+                    logger.debug(f"Using optimized prompt for {prompt_id} (score: {best_prompt[1]:.3f})")
+        
         # Create base system prompt
-        base_prompt = self.llm_client.create_agent_system_prompt(
-            agent_type=self.agent_type,
-            position_info=position_info,
-            task_context=f"{task.context}{context_summary}"
-        )
+        if optimized_prompt:
+            base_prompt = optimized_prompt
+        else:
+            base_prompt = self.llm_client.create_agent_system_prompt(
+                agent_type=self.agent_type,
+                position_info=position_info,
+                task_context=f"{task.context}{context_summary}"
+            )
         
         # Add token budget guidance if available
         if token_allocation:
@@ -463,6 +487,72 @@ class LLMAgent(Agent):
             enhanced_prompt = base_prompt
         
         return enhanced_prompt, stage_token_budget
+    
+    def _get_prompt_context(self, depth_ratio: float) -> PromptContext:
+        """
+        Determine prompt context based on agent type and helix position.
+        
+        Args:
+            depth_ratio: Agent's depth ratio on helix (0.0 = top, 1.0 = bottom)
+            
+        Returns:
+            PromptContext enum value
+        """
+        if self.agent_type == "research":
+            return PromptContext.RESEARCH_EARLY if depth_ratio < 0.3 else PromptContext.RESEARCH_MID
+        elif self.agent_type == "analysis":
+            return PromptContext.ANALYSIS_MID if depth_ratio < 0.7 else PromptContext.ANALYSIS_LATE
+        elif self.agent_type == "synthesis":
+            return PromptContext.SYNTHESIS_LATE
+        elif self.agent_type == "critic":
+            return PromptContext.GENERAL  # Critics can work at any stage
+        else:
+            return PromptContext.GENERAL
+    
+    def _record_prompt_metrics(self, prompt_text: str, prompt_context: PromptContext, 
+                              result: LLMResult) -> None:
+        """
+        Record prompt performance metrics for optimization learning.
+        
+        Args:
+            prompt_text: The full system prompt used
+            prompt_context: Context category for the prompt
+            result: LLM result containing performance data
+        """
+        if not self.prompt_optimizer:
+            return
+        
+        # Calculate token efficiency
+        tokens_used = getattr(result.llm_response, 'tokens_used', 0)
+        token_efficiency = min(result.confidence, 0.8) if tokens_used > 0 else 0.0
+        
+        # Determine if truncation occurred (approximate)
+        truncation_occurred = (
+            tokens_used >= self.max_tokens * 0.95 or  # Used most of token budget
+            result.llm_response.content.endswith("...") or  # Ends with ellipsis
+            len(result.llm_response.content) < 50  # Very short response
+        )
+        
+        # Create metrics
+        metrics = PromptMetrics(
+            output_quality=result.confidence,  # Use confidence as proxy for quality
+            confidence=result.confidence,
+            completion_time=result.processing_time,
+            token_efficiency=token_efficiency,
+            truncation_occurred=truncation_occurred,
+            context=prompt_context
+        )
+        
+        # Generate prompt ID for tracking
+        prompt_id = f"{self.agent_type}_{prompt_context.value}_stage_{self.processing_stage}"
+        
+        # Record metrics
+        optimization_result = self.prompt_optimizer.record_prompt_execution(
+            prompt_id, prompt_text, metrics
+        )
+        
+        if optimization_result.get("optimization_triggered"):
+            logger.info(f"Prompt optimization triggered for {prompt_id}")
     
     async def process_task_with_llm_async(self, task: LLMTask, current_time: float, 
                                          priority: RequestPriority = RequestPriority.NORMAL) -> LLMResult:
@@ -537,6 +627,10 @@ class LLMAgent(Agent):
         # Record token usage with budget manager
         if self.token_budget_manager:
             self.token_budget_manager.record_usage(self.agent_id, llm_response.tokens_used)
+        
+        # Record prompt metrics for optimization
+        prompt_context = self._get_prompt_context(position_info.get("depth_ratio", 0.0))
+        self._record_prompt_metrics(system_prompt, prompt_context, result)
         
         # Update statistics
         self.processing_results.append(result)
@@ -623,6 +717,10 @@ class LLMAgent(Agent):
         # Record token usage with budget manager
         if self.token_budget_manager:
             self.token_budget_manager.record_usage(self.agent_id, llm_response.tokens_used)
+        
+        # Record prompt metrics for optimization
+        prompt_context = self._get_prompt_context(position_info.get("depth_ratio", 0.0))
+        self._record_prompt_metrics(system_prompt, prompt_context, result)
         
         # Update statistics
         self.processing_results.append(result)
