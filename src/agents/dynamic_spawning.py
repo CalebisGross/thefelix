@@ -96,7 +96,7 @@ class ConfidenceMonitor:
         self.time_window_minutes = time_window_minutes
         
         # Confidence tracking
-        self._confidence_history = deque(maxsize=100)  # (timestamp, confidence, agent_type, depth)
+        self._confidence_history = deque(maxlen=100)  # (timestamp, confidence, agent_type, depth)
         self._agent_type_confidence: Dict[str, List[float]] = defaultdict(list)
         self._position_confidence: Dict[str, List[float]] = defaultdict(list)
         

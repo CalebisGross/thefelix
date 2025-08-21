@@ -98,6 +98,7 @@ class KnowledgeStore:
     def _init_database(self) -> None:
         """Initialize SQLite database with required tables."""
         with sqlite3.connect(self.storage_path) as conn:
+            # Main knowledge entries table
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS knowledge_entries (
                     knowledge_id TEXT PRIMARY KEY,
@@ -116,6 +117,17 @@ class KnowledgeStore:
                 )
             """)
             
+            # Normalized tags table for efficient tag filtering
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS knowledge_tags (
+                    knowledge_id TEXT NOT NULL,
+                    tag TEXT NOT NULL,
+                    PRIMARY KEY (knowledge_id, tag),
+                    FOREIGN KEY (knowledge_id) REFERENCES knowledge_entries(knowledge_id) ON DELETE CASCADE
+                )
+            """)
+            
+            # Indexes on main table
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_knowledge_type 
                 ON knowledge_entries(knowledge_type)
@@ -135,6 +147,55 @@ class KnowledgeStore:
                 CREATE INDEX IF NOT EXISTS idx_created_at 
                 ON knowledge_entries(created_at)
             """)
+            
+            # Indexes on tags table for efficient JOIN operations
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_tag_lookup 
+                ON knowledge_tags(tag)
+            """)
+            
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_knowledge_id_tag 
+                ON knowledge_tags(knowledge_id)
+            """)
+            
+            # Migrate existing data if needed
+            self._migrate_existing_tags(conn)
+    
+    def _migrate_existing_tags(self, conn) -> None:
+        """Migrate tags from JSON format to normalized table."""
+        try:
+            # Check if migration is needed by looking for entries with tags but no rows in knowledge_tags
+            cursor = conn.execute("""
+                SELECT ke.knowledge_id, ke.tags_json 
+                FROM knowledge_entries ke 
+                LEFT JOIN knowledge_tags kt ON ke.knowledge_id = kt.knowledge_id
+                WHERE ke.tags_json != '[]' AND kt.knowledge_id IS NULL
+            """)
+            
+            entries_to_migrate = cursor.fetchall()
+            
+            if entries_to_migrate:
+                print(f"Migrating tags for {len(entries_to_migrate)} existing knowledge entries...")
+                
+                for knowledge_id, tags_json in entries_to_migrate:
+                    try:
+                        tags = json.loads(tags_json)
+                        for tag in tags:
+                            conn.execute("""
+                                INSERT OR IGNORE INTO knowledge_tags (knowledge_id, tag) 
+                                VALUES (?, ?)
+                            """, (knowledge_id, tag))
+                    except (json.JSONDecodeError, TypeError):
+                        # Skip entries with invalid JSON
+                        continue
+                
+                print(f"Tag migration completed for {len(entries_to_migrate)} entries.")
+                
+        except sqlite3.Error as e:
+            # Migration failed, but don't crash - system will fall back to JSON tags
+            print(f"Tag migration failed (non-critical): {e}")
+            pass
     
     def _generate_knowledge_id(self, content: Dict[str, Any], 
                               source_agent: str) -> str:
@@ -195,6 +256,7 @@ class KnowledgeStore:
             content_json = ""  # Clear JSON to save space
         
         with sqlite3.connect(self.storage_path) as conn:
+            # Store main entry
             conn.execute("""
                 INSERT OR REPLACE INTO knowledge_entries 
                 (knowledge_id, knowledge_type, content_json, content_compressed,
@@ -216,6 +278,17 @@ class KnowledgeStore:
                 1.0,
                 json.dumps([])
             ))
+            
+            # Store tags in normalized table for efficient filtering
+            # First remove existing tags for this entry
+            conn.execute("DELETE FROM knowledge_tags WHERE knowledge_id = ?", (knowledge_id,))
+            
+            # Insert new tags
+            for tag in tags:
+                conn.execute("""
+                    INSERT INTO knowledge_tags (knowledge_id, tag) 
+                    VALUES (?, ?)
+                """, (knowledge_id, tag))
         
         return knowledge_id
     
@@ -229,18 +302,27 @@ class KnowledgeStore:
         Returns:
             List of matching knowledge entries
         """
-        sql_parts = ["SELECT * FROM knowledge_entries WHERE 1=1"]
+        # Determine if we need to JOIN with tags table
+        if query.tags:
+            sql_parts = [
+                "SELECT DISTINCT ke.* FROM knowledge_entries ke",
+                "INNER JOIN knowledge_tags kt ON ke.knowledge_id = kt.knowledge_id",
+                "WHERE 1=1"
+            ]
+        else:
+            sql_parts = ["SELECT * FROM knowledge_entries ke WHERE 1=1"]
+        
         params = []
         
         # Build WHERE clause
         if query.knowledge_types:
             type_placeholders = ",".join("?" * len(query.knowledge_types))
-            sql_parts.append(f"AND knowledge_type IN ({type_placeholders})")
+            sql_parts.append(f"AND ke.knowledge_type IN ({type_placeholders})")
             params.extend([kt.value for kt in query.knowledge_types])
         
         if query.domains:
             domain_placeholders = ",".join("?" * len(query.domains))
-            sql_parts.append(f"AND domain IN ({domain_placeholders})")
+            sql_parts.append(f"AND ke.domain IN ({domain_placeholders})")
             params.extend(query.domains)
         
         if query.min_confidence:
@@ -254,19 +336,25 @@ class KnowledgeStore:
             valid_levels = [level.value for level, order in confidence_order.items() 
                           if order >= min_level]
             level_placeholders = ",".join("?" * len(valid_levels))
-            sql_parts.append(f"AND confidence_level IN ({level_placeholders})")
+            sql_parts.append(f"AND ke.confidence_level IN ({level_placeholders})")
             params.extend(valid_levels)
         
         if query.min_success_rate:
-            sql_parts.append("AND success_rate >= ?")
+            sql_parts.append("AND ke.success_rate >= ?")
             params.append(query.min_success_rate)
         
         if query.time_range:
-            sql_parts.append("AND created_at BETWEEN ? AND ?")
+            sql_parts.append("AND ke.created_at BETWEEN ? AND ?")
             params.extend(query.time_range)
         
+        # Tag filtering at SQL level for efficiency
+        if query.tags:
+            tag_placeholders = ",".join("?" * len(query.tags))
+            sql_parts.append(f"AND kt.tag IN ({tag_placeholders})")
+            params.extend(query.tags)
+        
         # Add ordering and limit
-        sql_parts.append("ORDER BY confidence_level DESC, success_rate DESC, updated_at DESC")
+        sql_parts.append("ORDER BY ke.confidence_level DESC, ke.success_rate DESC, ke.updated_at DESC")
         sql_parts.append("LIMIT ?")
         params.append(query.limit)
         
@@ -276,18 +364,13 @@ class KnowledgeStore:
         with sqlite3.connect(self.storage_path) as conn:
             cursor = conn.execute(sql, params)
             for row in cursor.fetchall():
-                entry = self._row_to_entry(row)
+                entry = self._row_to_entry(row, conn)
                 
                 # Apply content filtering if specified
                 if query.content_keywords:
                     content_str = json.dumps(entry.content).lower()
                     if not any(keyword.lower() in content_str 
                              for keyword in query.content_keywords):
-                        continue
-                
-                # Apply tag filtering if specified  
-                if query.tags:
-                    if not any(tag in entry.tags for tag in query.tags):
                         continue
                 
                 entries.append(entry)
@@ -297,7 +380,7 @@ class KnowledgeStore:
         
         return entries
     
-    def _row_to_entry(self, row) -> KnowledgeEntry:
+    def _row_to_entry(self, row, conn=None) -> KnowledgeEntry:
         """Convert database row to KnowledgeEntry."""
         (knowledge_id, knowledge_type, content_json, content_compressed,
          confidence_level, source_agent, domain, tags_json,
@@ -309,6 +392,18 @@ class KnowledgeStore:
         else:
             content = json.loads(content_json)
         
+        # Get tags from normalized table if connection provided, otherwise fallback to JSON
+        tags = []
+        if conn:
+            try:
+                cursor = conn.execute("SELECT tag FROM knowledge_tags WHERE knowledge_id = ?", (knowledge_id,))
+                tags = [row[0] for row in cursor.fetchall()]
+            except sqlite3.Error:
+                # Fallback to JSON tags if query fails
+                tags = json.loads(tags_json)
+        else:
+            tags = json.loads(tags_json)
+        
         return KnowledgeEntry(
             knowledge_id=knowledge_id,
             knowledge_type=KnowledgeType(knowledge_type),
@@ -316,7 +411,7 @@ class KnowledgeStore:
             confidence_level=ConfidenceLevel(confidence_level),
             source_agent=source_agent,
             domain=domain,
-            tags=json.loads(tags_json),
+            tags=tags,
             created_at=created_at,
             updated_at=updated_at,
             access_count=access_count,
