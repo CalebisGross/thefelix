@@ -26,6 +26,7 @@ Implementation supports rigorous testing of Hypothesis H2 communication efficien
 import time
 import uuid
 import random
+import logging
 from enum import Enum
 from typing import Dict, List, Optional, Any, Tuple, TYPE_CHECKING
 from dataclasses import dataclass, field
@@ -33,11 +34,19 @@ from collections import deque
 from queue import Queue, Empty
 import asyncio
 
+# Memory system imports
+from memory.knowledge_store import KnowledgeStore, KnowledgeEntry, KnowledgeType, ConfidenceLevel
+from memory.task_memory import TaskMemory, TaskPattern, TaskOutcome
+from memory.context_compression import ContextCompressor, CompressionStrategy
+
 if TYPE_CHECKING:
     from agents.llm_agent import LLMAgent
     from core.helix_geometry import HelixGeometry
     from llm.lm_studio_client import LMStudioClient
     from llm.token_budget import TokenBudgetManager
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 
 class MessageType(Enum):
@@ -67,16 +76,20 @@ class CentralPost:
     processing messages from agents and coordinating task assignments.
     """
     
-    def __init__(self, max_agents: int = 133, enable_metrics: bool = False):
+    def __init__(self, max_agents: int = 133, enable_metrics: bool = False,
+                 enable_memory: bool = True, memory_db_path: str = "felix_memory.db"):
         """
         Initialize central post with configuration parameters.
-        
+
         Args:
             max_agents: Maximum number of concurrent agent connections
             enable_metrics: Whether to collect performance metrics
+            enable_memory: Whether to enable persistent memory systems
+            memory_db_path: Path to the memory database file
         """
         self.max_agents = max_agents
         self.enable_metrics = enable_metrics
+        self.enable_memory = enable_memory
         
         # Connection management
         self._registered_agents: Dict[str, str] = {}  # agent_id -> connection_id
@@ -84,7 +97,7 @@ class CentralPost:
         
         # Message processing (sync and async)
         self._message_queue: Queue = Queue()
-        self._async_message_queue: asyncio.Queue = None  # Lazy initialization
+        self._async_message_queue: Optional[asyncio.Queue] = None  # Lazy initialization
         self._processed_messages: List[Message] = []
         self._async_processors: List[asyncio.Task] = []
         
@@ -95,6 +108,17 @@ class CentralPost:
         self._processing_times: List[float] = []
         self._overhead_ratios: List[float] = []
         self._scaling_metrics: Dict[int, float] = {}
+        
+        # Memory systems (Priority 5: Memory and Context Persistence)
+        self._memory_enabled = enable_memory
+        if enable_memory:
+            self.knowledge_store = KnowledgeStore(memory_db_path)
+            self.task_memory = TaskMemory(memory_db_path)
+            self.context_compressor = ContextCompressor()
+        else:
+            self.knowledge_store = None
+            self.task_memory = None
+            self.context_compressor = None
         
         # System state
         self._is_active = True
@@ -576,6 +600,221 @@ class CentralPost:
         else:
             # Reject the result
             return False
+
+    # Memory Integration Methods (Priority 5: Memory and Context Persistence)
+    
+    def store_agent_result_as_knowledge(self, agent_id: str, content: str, 
+                                      confidence: float, domain: str = "general",
+                                      tags: Optional[List[str]] = None) -> bool:
+        """
+        Store agent result as knowledge in the persistent knowledge base.
+        
+        Args:
+            agent_id: ID of the agent producing the result
+            content: Content of the result to store
+            confidence: Confidence level of the result (0.0 to 1.0)
+            domain: Domain/category for the knowledge
+            tags: Optional tags for the knowledge entry
+            
+        Returns:
+            True if knowledge was stored successfully, False otherwise
+        """
+        if not self._memory_enabled or not self.knowledge_store:
+            return False
+        
+        try:
+            # Convert confidence to ConfidenceLevel enum
+            if confidence >= 0.8:
+                confidence_level = ConfidenceLevel.HIGH
+            elif confidence >= 0.6:
+                confidence_level = ConfidenceLevel.MEDIUM
+            else:
+                confidence_level = ConfidenceLevel.LOW
+            
+            # Store in knowledge base using correct method signature
+            entry_id = self.knowledge_store.store_knowledge(
+                knowledge_type=KnowledgeType.TASK_RESULT,
+                content={"result": content, "confidence": confidence},
+                confidence_level=confidence_level,
+                source_agent=agent_id,
+                domain=domain,
+                tags=tags
+            )
+            return entry_id is not None
+            
+        except Exception as e:
+            logger.error(f"Failed to store knowledge from agent {agent_id}: {e}")
+            return False
+    
+    def retrieve_relevant_knowledge(self, domain: Optional[str] = None,
+                                  knowledge_type: Optional[KnowledgeType] = None,
+                                  keywords: Optional[List[str]] = None,
+                                  min_confidence: Optional[ConfidenceLevel] = None,
+                                  limit: int = 10) -> List[KnowledgeEntry]:
+        """
+        Retrieve relevant knowledge from the knowledge base.
+        
+        Args:
+            domain: Filter by domain
+            knowledge_type: Filter by knowledge type
+            keywords: Keywords to search for
+            min_confidence: Minimum confidence level
+            limit: Maximum number of entries to return
+            
+        Returns:
+            List of relevant knowledge entries
+        """
+        if not self._memory_enabled or not self.knowledge_store:
+            return []
+        
+        try:
+            from memory.knowledge_store import KnowledgeQuery
+            query = KnowledgeQuery(
+                knowledge_types=[knowledge_type] if knowledge_type else None,
+                domains=[domain] if domain else None,
+                content_keywords=keywords,
+                min_confidence=min_confidence,
+                limit=limit
+            )
+            return self.knowledge_store.retrieve_knowledge(query)
+        except Exception as e:
+            logger.error(f"Failed to retrieve knowledge: {e}")
+            return []
+    
+    def get_task_strategy_recommendations(self, task_description: str,
+                                        task_type: str = "general",
+                                        complexity: str = "MODERATE") -> Dict[str, Any]:
+        """
+        Get strategy recommendations based on task memory.
+
+        Args:
+            task_description: Description of the task
+            task_type: Type of task (e.g., "research", "analysis", "synthesis")
+            complexity: Task complexity level ("SIMPLE", "MODERATE", "COMPLEX", "VERY_COMPLEX")
+            
+        Returns:
+            Dictionary containing strategy recommendations
+        """
+        if not self._memory_enabled or not self.task_memory:
+            return {}
+
+        try:
+            from memory.task_memory import TaskComplexity
+            # Convert string complexity to enum
+            complexity_enum = TaskComplexity.MODERATE
+            if complexity.upper() == "SIMPLE":
+                complexity_enum = TaskComplexity.SIMPLE
+            elif complexity.upper() == "COMPLEX":
+                complexity_enum = TaskComplexity.COMPLEX
+            elif complexity.upper() == "VERY_COMPLEX":
+                complexity_enum = TaskComplexity.VERY_COMPLEX
+                
+            return self.task_memory.recommend_strategy(
+                task_description=task_description,
+                task_type=task_type,
+                complexity=complexity_enum
+            )
+        except Exception as e:
+            logger.error(f"Failed to get strategy recommendations: {e}")
+            return {}
+    
+    def compress_large_context(self, context: str, 
+                             strategy: CompressionStrategy = CompressionStrategy.EXTRACTIVE_SUMMARY,
+                             target_size: Optional[int] = None):
+        """
+        Compress large context using the context compression system.
+        
+        Args:
+            context: Content to compress
+            strategy: Compression strategy to use
+            target_size: Optional target size for compression
+            
+        Returns:
+            CompressedContext object or None if compression failed
+        """
+        if not self._memory_enabled or not self.context_compressor:
+            return None
+        
+        try:
+            # Convert string context to dict format expected by compressor
+            context_dict = {"main_content": context}
+            return self.context_compressor.compress_context(
+                context=context_dict,
+                target_size=target_size,
+                strategy=strategy
+            )
+        except Exception as e:
+            logger.error(f"Failed to compress context: {e}")
+            return None
+    
+    def get_memory_summary(self) -> Dict[str, Any]:
+        """
+        Get summary of memory system status and contents.
+
+        Returns:
+            Dictionary with memory system summary
+        """
+        if not self._memory_enabled:
+            return {
+                "knowledge_entries": 0,
+                "task_patterns": 0,
+                "memory_enabled": False
+            }
+
+        try:
+            summary: Dict[str, Any] = {"memory_enabled": True}
+            
+            if self.knowledge_store:
+                # Get knowledge entry count using proper query
+                from memory.knowledge_store import KnowledgeQuery
+                query = KnowledgeQuery(limit=1000)
+                all_knowledge = self.knowledge_store.retrieve_knowledge(query)
+                summary["knowledge_entries"] = len(all_knowledge)
+                
+                # Get domain breakdown
+                domains: Dict[str, int] = {}
+                for entry in all_knowledge:
+                    domains[entry.domain] = domains.get(entry.domain, 0) + 1
+                summary["knowledge_by_domain"] = domains
+            else:
+                summary["knowledge_entries"] = 0
+                summary["knowledge_by_domain"] = {}
+            
+            if self.task_memory:
+                # Get task pattern count and summary
+                memory_summary = self.task_memory.get_memory_summary()
+                summary["task_patterns"] = memory_summary.get("total_patterns", 0)
+                summary["task_executions"] = memory_summary.get("total_executions", 0)
+                
+                # Handle success rate calculation from outcome distribution
+                outcome_dist = memory_summary.get("outcome_distribution", {})
+                total_executions = sum(outcome_dist.values()) if outcome_dist else 0
+                if total_executions > 0:
+                    successful_outcomes = outcome_dist.get("success", 0) + outcome_dist.get("partial_success", 0)
+                    summary["success_rate"] = successful_outcomes / total_executions
+                else:
+                    summary["success_rate"] = 0.0
+                
+                # Get top task types
+                summary["top_task_types"] = memory_summary.get("top_task_types", {})
+                summary["success_by_complexity"] = memory_summary.get("success_by_complexity", {})
+            else:
+                summary["task_patterns"] = 0
+                summary["task_executions"] = 0
+                summary["success_rate"] = 0.0
+                summary["top_task_types"] = {}
+                summary["success_by_complexity"] = {}
+            
+            return summary
+            
+        except Exception as e:
+            logger.error(f"Failed to get memory summary: {e}")
+            return {
+                "knowledge_entries": 0,
+                "task_patterns": 0,
+                "memory_enabled": True,
+                "error": str(e)
+            }
 
 
 class AgentFactory:

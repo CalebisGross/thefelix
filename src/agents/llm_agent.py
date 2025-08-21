@@ -29,6 +29,7 @@ from llm.lm_studio_client import LMStudioClient, LLMResponse, RequestPriority
 from llm.multi_server_client import LMStudioClientPool
 from llm.token_budget import TokenBudgetManager, TokenAllocation
 from communication.central_post import Message, MessageType
+from pipeline.chunking import ChunkedResult, ProgressiveProcessor, ContentSummarizer
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ class LLMTask:
     task_id: str
     description: str
     context: str = ""
-    metadata: Dict[str, Any] = None
+    metadata: Optional[Dict[str, Any]] = None
     
     def __post_init__(self):
         if self.metadata is None:
@@ -48,7 +49,7 @@ class LLMTask:
 
 @dataclass
 class LLMResult:
-    """Result from LLM agent processing."""
+    """Result from LLM agent processing with chunking support."""
     agent_id: str
     task_id: str
     content: str
@@ -58,6 +59,82 @@ class LLMResult:
     timestamp: float
     confidence: float = 0.0  # Confidence score (0.0 to 1.0)
     processing_stage: int = 1  # Stage number in helix descent
+    
+    # Chunking support fields
+    is_chunked: bool = False  # Whether this result contains chunked output
+    chunk_results: Optional[List[ChunkedResult]] = None  # List of chunk results if chunked
+    total_chunks: int = 1  # Total number of chunks (1 for non-chunked)
+    chunking_strategy: Optional[str] = None  # Strategy used for chunking (progressive/streaming)
+    summary_fallback: Optional[str] = None  # Summary if content was truncated
+    full_content_available: bool = True  # Whether full content is available or summarized
+    
+    def __post_init__(self):
+        if self.chunk_results is None and self.is_chunked:
+            self.chunk_results = []
+        elif self.chunk_results is None:
+            self.chunk_results = []
+    
+    def get_full_content(self) -> str:
+        """Get full content, combining chunks if necessary."""
+        if not self.is_chunked:
+            return self.content
+        
+        if not self.chunk_results:
+            return self.content
+        
+        # Combine chunk content in order
+        sorted_chunks = sorted(self.chunk_results, key=lambda x: x.chunk_index)
+        combined_content = "".join(chunk.content_chunk for chunk in sorted_chunks)
+        
+        return combined_content if combined_content else self.content
+    
+    def get_content_summary(self) -> str:
+        """Get content summary, preferring summary_fallback if available."""
+        if self.summary_fallback and not self.full_content_available:
+            return self.summary_fallback
+        
+        content = self.get_full_content()
+        if len(content) <= 200:
+            return content
+        
+        return content[:200] + "..."
+    
+    def add_chunk(self, chunk: ChunkedResult) -> None:
+        """Add a chunk result to this LLM result."""
+        if not self.is_chunked:
+            self.is_chunked = True
+            
+        if self.chunk_results is None:
+            self.chunk_results = []
+            
+        self.chunk_results.append(chunk)
+        self.total_chunks = len(self.chunk_results)
+    
+    def is_complete(self) -> bool:
+        """Check if all chunks are available for a chunked result."""
+        if not self.is_chunked:
+            return True
+        
+        if not self.chunk_results:
+            return False
+        
+        # Check if we have a final chunk
+        return any(chunk.is_final for chunk in self.chunk_results)
+    
+    def get_chunking_metadata(self) -> Dict[str, Any]:
+        """Get metadata about the chunking process."""
+        if not self.is_chunked:
+            return {"chunked": False}
+        
+        return {
+            "chunked": True,
+            "total_chunks": self.total_chunks,
+            "chunks_available": len(self.chunk_results) if self.chunk_results else 0,
+            "strategy": self.chunking_strategy,
+            "complete": self.is_complete(),
+            "full_content_available": self.full_content_available,
+            "has_summary_fallback": self.summary_fallback is not None
+        }
 
 
 class LLMAgent(Agent):
@@ -575,29 +652,58 @@ class LLMAgent(Agent):
     def share_result_to_central(self, result: LLMResult) -> Message:
         """
         Create message to share result with central post.
-        
+
         Args:
             result: Processing result to share
-            
+
         Returns:
             Message for central post communication
         """
+        # Handle tokens_used for chunked vs non-chunked results
+        tokens_used = 0
+        if result.is_chunked and result.chunk_results:
+            # Sum tokens from all chunks
+            tokens_used = sum(chunk.metadata.get("tokens_used", 0) for chunk in result.chunk_results)
+        elif result.llm_response:
+            tokens_used = result.llm_response.tokens_used
+        
+        content_data = {
+            "type": "AGENT_RESULT",
+            "agent_id": self.agent_id,
+            "agent_type": self.agent_type,
+            "task_id": result.task_id,
+            "content": result.get_content_summary(),  # Use summary for chunked content
+            "full_content_available": result.full_content_available,
+            "position_info": result.position_info,
+            "tokens_used": tokens_used,
+            "processing_time": result.processing_time,
+            "confidence": result.confidence,
+            "processing_stage": result.processing_stage,
+            "summary": self._create_result_summary(result)
+        }
+        
+        # Add chunking metadata if applicable
+        if result.is_chunked:
+            content_data["chunking_metadata"] = result.get_chunking_metadata()
+            content_data["chunking_strategy"] = result.chunking_strategy
+            
+            # For streaming synthesis, make chunks available to synthesis agents
+            if result.chunking_strategy == "streaming" and result.chunk_results:
+                content_data["streaming_chunks"] = [
+                    {
+                        "chunk_index": chunk.chunk_index,
+                        "aspect": chunk.metadata.get("aspect", f"Section {chunk.chunk_index + 1}"),
+                        "content": chunk.content_chunk,
+                        "is_final": chunk.is_final,
+                        "timestamp": chunk.timestamp
+                    }
+                    for chunk in result.chunk_results
+                ]
+        
         return Message(
             sender_id=self.agent_id,
             message_type=MessageType.STATUS_UPDATE,
-            content={
-                "type": "AGENT_RESULT",
-                "agent_id": self.agent_id,
-                "agent_type": self.agent_type,
-                "task_id": result.task_id,
-                "content": result.content,
-                "position_info": result.position_info,
-                "tokens_used": result.llm_response.tokens_used,
-                "processing_time": result.processing_time,
-                "confidence": result.confidence,
-                "processing_stage": result.processing_stage,
-                "summary": self._create_result_summary(result)
-            },
+            content=content_data,
             timestamp=result.timestamp
         )
     

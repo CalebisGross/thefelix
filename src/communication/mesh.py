@@ -53,7 +53,7 @@ class MeshMessage:
     message_type: str
     content: Dict[str, Any]
     timestamp: float
-    message_id: str = None
+    message_id: Optional[str] = None
     
     def __post_init__(self):
         """Initialize message with validation and ID generation."""
