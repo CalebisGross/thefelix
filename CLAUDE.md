@@ -24,7 +24,7 @@ The Felix Framework is a **completed research project** exploring helix-based co
 
 **Every action must be justified, documented, and validated. No exceptions.**
 
-Key requirements from DEVELOPMENT_RULES.md:
+Key requirements from docs/guides/development/DEVELOPMENT_RULES.md:
 - NO CODE without corresponding tests written FIRST
 - Mandatory commit message template with WHY/WHAT/EXPECTED/ALTERNATIVES/TESTS
 - Daily research log entries in `RESEARCH_LOG.md`
@@ -47,11 +47,11 @@ Key requirements from DEVELOPMENT_RULES.md:
 
 ### Research Documentation
 - `thefelix.md` - Original OpenSCAD prototype demonstrating core concepts
-- `docs/mathematical_model.md` - Formal parametric equations and geometric properties
-- `docs/hypothesis_mathematics.md` - Statistical frameworks for H1, H2, H3 validation
+- `docs/architecture/core/mathematical_model.md` - Formal parametric equations and geometric properties
+- `docs/architecture/core/hypothesis_mathematics.md` - Statistical frameworks for H1, H2, H3 validation
 - `research/initial_hypothesis.md` - Research hypotheses and predictions
 - `RESEARCH_LOG.md` - Complete research progress documentation
-- `decisions/ADR-001-technology-stack.md` - Technology choice rationale
+- `docs/architecture/decisions/ADR-001-technology-stack.md` - Technology choice rationale
 
 ### Validation and Testing
 - `tests/unit/` - 107+ comprehensive tests (all passing)
@@ -155,10 +155,10 @@ python examples/benchmark_comparison.py --output benchmark_results.json
 
 ### For Understanding the Completed Research
 1. **Review RESEARCH_LOG.md** - Complete research journey and findings
-2. **Understand the geometric model** - Review `thefelix.md` and `docs/mathematical_model.md`
+2. **Understand the geometric model** - Review `thefelix.md` and `docs/architecture/core/mathematical_model.md`
 3. **Examine validation results** - Run `python validate_felix_framework.py`
 4. **Study the three architectures** - Helix-spoke (O(N)), Linear pipeline (O(N×M)), Mesh (O(N²))
-5. **Review hypothesis outcomes** - See `docs/hypothesis_mathematics.md` for statistical frameworks
+5. **Review hypothesis outcomes** - See `docs/architecture/core/hypothesis_mathematics.md` for statistical frameworks
 
 ### For Extending the Research
 1. **Understand agent spawning behavior** - All agents spawn at helix top (t=0) at different times
@@ -276,10 +276,10 @@ sphinx>=7.1.0, sphinx-rtd-theme>=1.3.0
 ## Project Status and Development Approach
 
 **This is a completed research project.** When extending:
-1. Follow hypothesis-driven development from `DEVELOPMENT_RULES.md`
+1. Follow hypothesis-driven development from `docs/guides/development/DEVELOPMENT_RULES.md`
 2. Write tests BEFORE implementation (mandatory)
 3. Document all changes in `RESEARCH_LOG.md`
-4. Use ADRs for architectural decisions in `decisions/`
+4. Use ADRs for architectural decisions in `docs/architecture/decisions/`
 5. Preserve failed experiments in `experiments/failed/`
 
 The framework demonstrates that geometric-based multi-agent coordination offers measurable advantages in task distribution and memory efficiency while providing an intuitive "spiral to consensus" mental model for complex orchestration tasks.

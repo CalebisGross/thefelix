@@ -21,12 +21,24 @@ experiments with proper statistical methodology for peer review.
 Mathematical reference: docs/hypothesis_mathematics.md, Sections H1, H2, H3
 """
 
+import sys
+import os
 import time
 import statistics
 import numpy as np
 from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
+
+# Fix import paths for running as script or module
+current_dir = Path(__file__).parent
+src_dir = current_dir.parent
+project_root = src_dir.parent
+
+# Add src directory to path if not already there
+if str(src_dir) not in sys.path:
+    sys.path.insert(0, str(src_dir))
 
 from core.helix_geometry import HelixGeometry
 from agents.agent import Agent, create_openscad_agents
@@ -34,7 +46,12 @@ from communication.central_post import CentralPost
 from communication.spoke import SpokeManager
 from communication.mesh import MeshCommunication
 from pipeline.linear_pipeline import LinearPipeline
-from .statistical_analysis import StatisticalAnalyzer
+
+# Handle relative import for statistical_analysis
+try:
+    from .statistical_analysis import StatisticalAnalyzer
+except ImportError:
+    from statistical_analysis import StatisticalAnalyzer
 
 
 class ArchitectureType(Enum):
@@ -555,3 +572,90 @@ class MockTask:
     def __init__(self, task_id: str):
         self.id = task_id
         self.data = {"test": True}
+
+
+def main():
+    """
+    Main function for running architecture comparison as a script.
+    
+    This demonstrates how to use the ArchitectureComparison framework
+    to compare Felix helix architecture with linear and mesh alternatives.
+    """
+    print("Felix Framework Architecture Comparison")
+    print("=" * 50)
+    
+    # Create helix geometry
+    helix = HelixGeometry(
+        top_radius=33.0,
+        bottom_radius=0.001,
+        height=33.0,
+        turns=33
+    )
+    
+    # Initialize comparison framework
+    comparison = ArchitectureComparison(helix, max_agents=20)
+    
+    # Configure experiment
+    config = ExperimentalConfig(
+        agent_count=10,
+        simulation_time=1.0,
+        task_load=5,
+        random_seed=42
+    )
+    
+    print(f"\nRunning comparative experiment:")
+    print(f"- Agent count: {config.agent_count}")
+    print(f"- Simulation time: {config.simulation_time}s")
+    print(f"- Task load: {config.task_load}")
+    print(f"- Random seed: {config.random_seed}")
+    
+    # Run comparison
+    try:
+        results = comparison.run_comparative_experiment(config)
+        
+        print(f"\nExperiment completed successfully!")
+        print(f"Architectures tested: {len(results.performance_metrics)}")
+        
+        # Display results
+        print(f"\nPerformance Rankings:")
+        for i, (arch, score) in enumerate(results.performance_rankings):
+            print(f"{i+1}. {arch}: {score:.3f}")
+        
+        print(f"\nDetailed Metrics:")
+        for metrics in results.performance_metrics:
+            print(f"\n{metrics.architecture_name.upper()}:")
+            print(f"  Task completion time: {metrics.task_completion_time:.3f}s")
+            print(f"  Throughput: {metrics.throughput:.2f} tasks/s")
+            print(f"  Communication overhead: {metrics.communication_overhead:.3f}")
+            print(f"  Memory usage: {metrics.memory_usage:.1f} units")
+            print(f"  Complexity: {metrics.communication_complexity_order}")
+        
+        # Analyze results
+        throughput_analysis = comparison.analyze_throughput_characteristics(results)
+        memory_analysis = comparison.analyze_memory_usage(results)
+        
+        print(f"\nThroughput Analysis:")
+        for arch, throughput in throughput_analysis["architecture_throughputs"].items():
+            relative = throughput_analysis["relative_performance"][arch]
+            print(f"  {arch}: {throughput:.2f} tasks/s ({relative:.1%} of best)")
+        
+        print(f"\nMemory Efficiency Rankings:")
+        for arch, memory in memory_analysis["memory_efficiency_rankings"]:
+            print(f"  {arch}: {memory:.1f} units")
+        
+        print(f"\nStatistical Analysis:")
+        stats = results.statistical_analysis
+        print(f"  Average throughput: {stats['throughput_stats']['mean']:.2f} ± {stats['throughput_stats']['std']:.2f}")
+        print(f"  Average completion time: {stats['completion_time_stats']['mean']:.3f}s ± {stats['completion_time_stats']['std']:.3f}")
+        print(f"  Average memory usage: {stats['memory_stats']['mean']:.1f} ± {stats['memory_stats']['std']:.1f}")
+        
+    except Exception as e:
+        print(f"\nError running comparison: {e}")
+        return 1
+    
+    print(f"\nComparison completed successfully!")
+    return 0
+
+
+if __name__ == "__main__":
+    exit(main())
