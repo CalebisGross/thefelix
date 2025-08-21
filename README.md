@@ -275,7 +275,7 @@ If you use Felix Framework in research, please cite:
 ```bibtex
 @software{felix_framework_2025,
   title={Felix Framework: Helix-Based Multi-Agent Cognitive Architecture},
-  author={[Your Name]},
+  author={Caleb Gross},
   year={2025},
   url={https://https://github.com/CalebisGross/thefelix},
   note={Research-validated geometric approach to multi-agent coordination}
