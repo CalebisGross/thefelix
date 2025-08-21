@@ -940,7 +940,7 @@ class AgentFactory:
             llm_client=self.llm_client,
             output_format=output_format,
             token_budget_manager=self.token_budget_manager,
-            max_tokens=800
+            max_tokens=1200  # Increased for comprehensive blog posts
         )
     
     def assess_team_needs(self, processed_messages: List[Message], 

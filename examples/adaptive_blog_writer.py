@@ -189,11 +189,11 @@ class AdaptiveFelixBlogWriter:
         )
         self.spoke_manager = SpokeManager(self.central_post)
         
-        # Token budget manager
+        # Token budget manager - increased budget for synthesis agents
         self.token_budget_manager = TokenBudgetManager(
-            base_budget=1200,
+            base_budget=1500,
             min_budget=150,
-            max_budget=800,
+            max_budget=1200,  # Increased for synthesis agents
             strict_mode=False
         )
         
@@ -281,12 +281,13 @@ class AdaptiveFelixBlogWriter:
             # Phase 4: Process and chunk output if needed
             processed_content = await self._process_final_output(blog_content, topic)
             
-            # Phase 5: Store results and calculate quality metrics
+            # Phase 5: Set end time and store results
+            self.execution_stats["end_time"] = time.time()
+            
+            # Store results and calculate quality metrics
             final_results = await self._finalize_and_analyze(
                 topic, processed_content, initial_team
             )
-            
-            self.execution_stats["end_time"] = time.time()
             
             # Phase 6: Save output if requested
             if save_output:
@@ -423,6 +424,10 @@ class AdaptiveFelixBlogWriter:
                         result = await agent.process_task_with_llm_async(task, current_time)
                         results.append(result)
                         
+                        # Mark agent as completed after successful processing
+                        # This prevents duplicate content generation
+                        agent.state = agent.state.__class__.COMPLETED
+                        
                         # Update benchmarking
                         if self.enable_benchmarking:
                             self.benchmarker.record_response_time(result.processing_time)
@@ -461,10 +466,9 @@ class AdaptiveFelixBlogWriter:
             from communication.central_post import Message, MessageType
             
             message = Message(
-                id=f"msg_{result.task_id}_{result.agent_id}",
-                sender=result.agent_id,
-                recipient="central_post",
-                message_type=MessageType.RESULT,
+                message_id=f"msg_{result.task_id}_{result.agent_id}",
+                sender_id=result.agent_id,
+                message_type=MessageType.TASK_COMPLETE,
                 content={
                     "confidence": result.confidence,
                     "agent_type": getattr(result, 'agent_type', 'general'),
@@ -492,30 +496,50 @@ class AdaptiveFelixBlogWriter:
         if not results:
             return f"# {topic}\n\nNo content generated."
         
-        # Group results by agent type
-        research_content = []
-        analysis_content = []
-        synthesis_content = []
-        critic_content = []
+        # Group results by agent type and select the best content
+        agent_content = {
+            'research': [],
+            'analysis': [],
+            'synthesis': [],
+            'critic': []
+        }
         
         for result in results:
-            agent_type = getattr(result, 'agent_type', 'general')
+            # Try to get agent type from the result, or fall back to agent_id
+            agent_type = getattr(result, 'agent_type', getattr(result, 'agent_id', 'general'))
             content = result.content.strip()
+            confidence = getattr(result, 'confidence', 0.0)
+            timestamp = getattr(result, 'timestamp', 0)
             
+            # Categorize by agent type
             if 'research' in agent_type.lower():
-                research_content.append(content)
+                agent_content['research'].append((content, confidence, timestamp, result))
             elif 'analysis' in agent_type.lower():
-                analysis_content.append(content)
+                agent_content['analysis'].append((content, confidence, timestamp, result))
             elif 'synthesis' in agent_type.lower():
-                synthesis_content.append(content)
+                agent_content['synthesis'].append((content, confidence, timestamp, result))
             elif 'critic' in agent_type.lower():
-                critic_content.append(content)
+                agent_content['critic'].append((content, confidence, timestamp, result))
+        
+        # Select the best content for each type (highest confidence, then latest)
+        def select_best_content(content_list):
+            if not content_list:
+                return []
+            # Sort by confidence (desc), then timestamp (desc) to get the best and most recent
+            sorted_content = sorted(content_list, key=lambda x: (x[1], x[2]), reverse=True)
+            # Return only the best result for each agent type to avoid duplicates
+            return [sorted_content[0][0]]
+        
+        research_content = select_best_content(agent_content['research'])
+        analysis_content = select_best_content(agent_content['analysis'])
+        synthesis_content = select_best_content(agent_content['synthesis'])
+        critic_content = select_best_content(agent_content['critic'])
         
         # Build cohesive blog post
         blog_parts = [f"# {topic}\n"]
         
         if synthesis_content:
-            # Use synthesis as main content
+            # Use synthesis as main content (only the best one)
             blog_parts.extend(synthesis_content)
         else:
             # Fallback: combine research and analysis
@@ -684,7 +708,9 @@ class AdaptiveFelixBlogWriter:
         print("=" * 60)
         
         stats = results.get("stats", {})
-        execution_time = stats.get("end_time", 0) - stats.get("start_time", 0)
+        end_time = stats.get("end_time", 0)
+        start_time = stats.get("start_time", 0)
+        execution_time = (end_time - start_time) if end_time and start_time else 0
         
         print(f"⏱️  Execution Time: {execution_time:.2f} seconds")
         print(f"👥 Team Composition: {len(results.get('team_composition', []))} agents")

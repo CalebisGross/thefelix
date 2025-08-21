@@ -1,0 +1,50 @@
+{
+  "topic": "Simple physics topic",
+  "content": "# Simple physics topic\n",
+  "stats": {
+    "start_time": 1755801225.4496942,
+    "end_time": 1755801248.9402938,
+    "agents_spawned": 3,
+    "dynamic_spawns": 0,
+    "prompts_optimized": 0,
+    "chunks_processed": 0,
+    "knowledge_retrieved": 1,
+    "quality_scores": [
+      0.3933
+    ]
+  },
+  "team_composition": [
+    "dynamic_research_000",
+    "dynamic_analysis_001",
+    "dynamic_synthesis_002"
+  ],
+  "quality_metrics": {
+    "overall_score": 0.3933,
+    "coherence": 0.5,
+    "clarity": 0.42,
+    "completeness": 0.0,
+    "word_count": 4,
+    "sentence_count": 1
+  },
+  "performance_metrics": {},
+  "learning_status": {
+    "knowledge_stored": "4ea3d76f0c9e23c1",
+    "optimization": {
+      "prompts_tracked": 12,
+      "active_tests": 0,
+      "system_health": "needs_improvement",
+      "overall_performance": 0.5716898098830202
+    },
+    "dynamic_spawning": {
+      "total_spawns": 0,
+      "spawns_by_type": {
+        "research": 0,
+        "analysis": 0,
+        "critic": 0,
+        "synthesis": 0
+      },
+      "average_priority": 0.0,
+      "spawning_reasons": []
+    }
+  }
+}
