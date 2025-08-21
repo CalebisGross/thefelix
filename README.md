@@ -12,22 +12,6 @@
 
 Felix Framework revolutionizes multi-agent systems by replacing traditional graph-based orchestration with **3D helix-based cognitive architecture**. Instead of explicit state machines, agents naturally converge through geometric spiral paths, creating emergent coordination patterns.
 
-```
-         🎯 Central Post
-         │
-    ╭────┼────╮     ← Agents spawn at top (high creativity)
-   ╱     │     ╲
-  ╱      │      ╲   
- ╱    🤖─┼─🤖    ╲   ← Spiral down with spoke communication
-╱        │        ╲
-│     🤖─┼─🤖     │  ← Natural attention focusing
-╲        │        ╱
- ╲    🤖─┼─🤖    ╱   ← Convergence at bottom (high precision)
-  ╲      │      ╱
-   ╲─────┼─────╱
-         🎯
-```
-
 ## ⚡ Quick Start
 
 ```bash
