@@ -16,7 +16,7 @@ Felix Framework revolutionizes multi-agent systems by replacing traditional grap
 
 ```bash
 # Setup
-git clone https://github.com/yourusername/thefelix.git
+git clone https://github.com/CalebisGross/thefelix.git
 cd thefelix
 python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
@@ -277,7 +277,7 @@ If you use Felix Framework in research, please cite:
   title={Felix Framework: Helix-Based Multi-Agent Cognitive Architecture},
   author={Caleb Gross},
   year={2025},
-  url={https://https://github.com/CalebisGross/thefelix},
+  url={https://github.com/CalebisGross/thefelix},
   note={Research-validated geometric approach to multi-agent coordination}
 }
 ```
