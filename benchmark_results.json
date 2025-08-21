@@ -1,12 +1,12 @@
 {
-  "benchmark_timestamp": 1755792068.3525157,
+  "benchmark_timestamp": 1755794471.531592,
   "summary": {
     "total_systems": 5,
     "total_tests": 10,
     "successful_tests": 10,
     "success_rate": 1.0,
-    "total_execution_time": 0.40747499465942383,
-    "average_time_per_test": 0.04074749946594238
+    "total_execution_time": 0.3927116394042969,
+    "average_time_per_test": 0.03927116394042969
   },
   "system_results": [
     {
@@ -14,13 +14,13 @@
       "tests": 2,
       "successful": 2,
       "success_rate": 1.0,
-      "total_time": 0.0005757808685302734,
-      "average_time": 0.0002878904342651367,
+      "total_time": 0.0005805492401123047,
+      "average_time": 0.00029027462005615234,
       "detailed_results": [
         {
           "test_name": "basic_chunking",
           "success": true,
-          "execution_time": 6.4849853515625e-05,
+          "execution_time": 6.556510925292969e-05,
           "metrics": {
             "total_chunks": 18,
             "content_length": 3500,
@@ -32,7 +32,7 @@
         {
           "test_name": "large_content_performance",
           "success": true,
-          "execution_time": 0.0005068778991699219,
+          "execution_time": 0.0005102157592773438,
           "metrics": {
             "content_length": 39000,
             "total_chunks": 78,
@@ -48,13 +48,13 @@
       "tests": 2,
       "successful": 2,
       "success_rate": 1.0,
-      "total_time": 0.35849714279174805,
-      "average_time": 0.17924857139587402,
+      "total_time": 0.348940372467041,
+      "average_time": 0.1744701862335205,
       "detailed_results": [
         {
           "test_name": "basic_storage_retrieval",
           "success": true,
-          "execution_time": 0.024051427841186523,
+          "execution_time": 0.013666868209838867,
           "metrics": {
             "stored_entries": 1,
             "retrieved_entries": 1,
@@ -65,7 +65,7 @@
         {
           "test_name": "bulk_storage_performance",
           "success": true,
-          "execution_time": 0.33420348167419434,
+          "execution_time": 0.33500218391418457,
           "metrics": {
             "stored_entries": 100,
             "retrieved_all": 100,
@@ -81,13 +81,13 @@
       "tests": 2,
       "successful": 2,
       "success_rate": 1.0,
-      "total_time": 0.0052487850189208984,
-      "average_time": 0.0026243925094604492,
+      "total_time": 0.006365060806274414,
+      "average_time": 0.003182530403137207,
       "detailed_results": [
         {
           "test_name": "basic_quality_assessment",
           "success": true,
-          "execution_time": 0.004004001617431641,
+          "execution_time": 0.0047566890716552734,
           "metrics": {
             "overall_score": 0.5741861655977176,
             "coherence_score": 0.5365641896127235,
@@ -103,7 +103,7 @@
         {
           "test_name": "batch_processing_performance",
           "success": true,
-          "execution_time": 0.001238107681274414,
+          "execution_time": 0.0016024112701416016,
           "metrics": {
             "texts_processed": 5,
             "average_overall_score": 0.4317391205537615,
@@ -119,13 +119,13 @@
       "tests": 2,
       "successful": 2,
       "success_rate": 1.0,
-      "total_time": 0.0006580352783203125,
-      "average_time": 0.00032901763916015625,
+      "total_time": 0.0007028579711914062,
+      "average_time": 0.0003514289855957031,
       "detailed_results": [
         {
           "test_name": "basic_optimization",
           "success": true,
-          "execution_time": 2.4318695068359375e-05,
+          "execution_time": 2.5510787963867188e-05,
           "metrics": {
             "base_prompt_length": 50,
             "optimized_prompt_length": 113,
@@ -138,7 +138,7 @@
         {
           "test_name": "performance_tracking",
           "success": true,
-          "execution_time": 0.0004818439483642578,
+          "execution_time": 0.0005042552947998047,
           "metrics": {
             "prompts_created": 10,
             "average_performance_records": 1,
@@ -153,13 +153,13 @@
       "tests": 2,
       "successful": 2,
       "success_rate": 1.0,
-      "total_time": 0.0424952507019043,
-      "average_time": 0.02124762535095215,
+      "total_time": 0.036122798919677734,
+      "average_time": 0.018061399459838867,
       "detailed_results": [
         {
           "test_name": "chunking_quality_metrics",
           "success": true,
-          "execution_time": 0.004926443099975586,
+          "execution_time": 0.004618406295776367,
           "metrics": {
             "total_chunks": 4,
             "chunks_with_quality": 4,
@@ -172,7 +172,7 @@
         {
           "test_name": "knowledge_quality_integration",
           "success": true,
-          "execution_time": 0.03754138946533203,
+          "execution_time": 0.0314791202545166,
           "metrics": {
             "content_pieces": 3,
             "stored_entries": 3,
