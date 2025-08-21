@@ -271,12 +271,13 @@ We welcome contributions! Please see our [contributing guidelines](./CONTRIBUTIN
 
 If you use Felix Framework in research, please cite:
 
+
 ```bibtex
 @software{felix_framework_2025,
   title={Felix Framework: Helix-Based Multi-Agent Cognitive Architecture},
   author={[Your Name]},
   year={2025},
-  url={https://github.com/yourusername/thefelix},
+  url={https://https://github.com/CalebisGross/thefelix},
   note={Research-validated geometric approach to multi-agent coordination}
 }
 ```
