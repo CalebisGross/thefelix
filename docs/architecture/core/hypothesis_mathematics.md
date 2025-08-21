@@ -3,7 +3,7 @@
 **Document Version**: 1.0  
 **Date**: 2025-08-18  
 **Status**: Formal Specification  
-**Related**: `research/initial_hypothesis.md`, `docs/mathematical_model.md`
+**Related**: `research/initial_hypothesis.md`, `docs/architecture/core/mathematical_model.md`
 
 ## Abstract
 
@@ -295,7 +295,7 @@ The framework supports both theoretical analysis and empirical validation of the
 
 ## References
 
-1. Mathematical model: `docs/mathematical_model.md`
+1. Mathematical model: `docs/architecture/core/mathematical_model.md`
 2. Initial hypotheses: `research/initial_hypothesis.md`
 3. Implementation: `src/core/helix_geometry.py`, `src/communication/`
 4. Test framework: `tests/unit/`

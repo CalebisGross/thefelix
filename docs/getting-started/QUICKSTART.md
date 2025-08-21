@@ -9,7 +9,7 @@ Welcome to the Felix Framework! This guide will get you up and running with LLM-
    - Install and load a model (any chat model works)
    - Start the server (default: http://localhost:1234)
 
-2. **Python 3.8+** and **Git**
+2. **Python 3.12+** and **Git** (Python 3.8+ supported but 3.12+ recommended)
 
 ## Step-by-Step Setup
 
@@ -25,7 +25,7 @@ python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install dependencies
-pip install numpy scipy pytest openai httpx
+pip install -r requirements.txt
 ```
 
 ### 2. Verify LM Studio Connection
@@ -165,9 +165,12 @@ pip install --force-reinstall openai httpx numpy scipy
 ## Getting Help
 
 - **Documentation**: Check `/docs/` folder for detailed explanations
+  - **Navigation Guide**: See `docs/getting-started/README.md` for documentation structure
+  - **Architecture**: Review `docs/architecture/PROJECT_OVERVIEW.md` for high-level overview
 - **Research Log**: See `RESEARCH_LOG.md` for development insights
-- **Mathematical Model**: Review `docs/mathematical_model.md` for theory
-- **LLM Integration**: Full details in `LLM_INTEGRATION.md`
+- **Mathematical Model**: Review `docs/architecture/core/mathematical_model.md` for theory
+- **LLM Integration**: Full details in `docs/guides/llm-integration/LLM_INTEGRATION.md`
+- **Development**: See `docs/guides/development/DEVELOPMENT_RULES.md` for contribution guidelines
 
 ## Examples to Try
 

@@ -241,23 +241,51 @@ validate_precision() → bool
 
 ---
 
+## Documentation Structure
+
+The Felix Framework documentation is organized into logical sections for easy navigation:
+
+```
+docs/
+├── getting-started/           # User onboarding
+│   ├── README.md             # Documentation navigation guide
+│   └── QUICKSTART.md         # Getting started guide
+├── guides/                   # User and developer guides
+│   ├── llm-integration/      # LLM setup and usage
+│   │   ├── LLM_INTEGRATION.md
+│   │   ├── MULTI_MODEL_SETUP.md
+│   │   └── PARALLEL_USAGE.md
+│   └── development/          # Development methodology
+│       └── DEVELOPMENT_RULES.md
+├── architecture/             # Design and theory
+│   ├── PROJECT_OVERVIEW.md
+│   ├── core/                # Mathematical foundations
+│   │   ├── mathematical_model.md
+│   │   └── hypothesis_mathematics.md
+│   └── decisions/           # Architecture Decision Records
+│       └── ADR-001-technology-stack.md
+└── reference/              # Complete reference
+    └── PROJECT_INDEX.md    # This file
+```
+
 ## Research Documentation
 
 ### Primary Research Documents
 - **`RESEARCH_LOG.md`** - Complete research progression and findings
 - **`research/initial_hypothesis.md`** - Original research hypotheses (H1, H2, H3)
-- **`docs/hypothesis_mathematics.md`** - Statistical frameworks and validation methods
-- **`docs/mathematical_model.md`** - Formal parametric equations and proofs
+- **`docs/architecture/core/hypothesis_mathematics.md`** - Statistical frameworks and validation methods
+- **`docs/architecture/core/mathematical_model.md`** - Formal parametric equations and proofs
 
 ### Technical Documentation
-- **`PROJECT_OVERVIEW.md`** - High-level project description
-- **`QUICKSTART.md`** - Getting started guide and basic usage
-- **`DEVELOPMENT_RULES.md`** - Research methodology and coding standards
-- **`LLM_INTEGRATION.md`** - LLM setup and multi-model configuration
-- **`PARALLEL_USAGE.md`** - Concurrent processing documentation
+- **`docs/architecture/PROJECT_OVERVIEW.md`** - High-level project description
+- **`docs/getting-started/QUICKSTART.md`** - Getting started guide and basic usage
+- **`docs/guides/development/DEVELOPMENT_RULES.md`** - Research methodology and coding standards
+- **`docs/guides/llm-integration/LLM_INTEGRATION.md`** - LLM setup and multi-model configuration
+- **`docs/guides/llm-integration/MULTI_MODEL_SETUP.md`** - Multi-model configuration details
+- **`docs/guides/llm-integration/PARALLEL_USAGE.md`** - Concurrent processing documentation
 
 ### Architecture Decisions
-- **`decisions/ADR-001-technology-stack.md`** - Technology selection rationale
+- **`docs/architecture/decisions/ADR-001-technology-stack.md`** - Technology selection rationale
 
 ### Original Prototype
 - **`thefelix.md`** - OpenSCAD prototype demonstrating core geometric concepts
@@ -267,8 +295,8 @@ validate_precision() → bool
 ## Examples & Demonstrations
 
 ### Core System Demos
-- **`demo_agent_system.py`** - Agent lifecycle demonstration
-- **`demo_communication_system.py`** - Communication system showcase
+- **`tests/demos/demo_agent_system.py`** - Agent lifecycle demonstration
+- **`tests/demos/demo_communication_system.py`** - Communication system showcase
 
 ### LLM-Powered Examples
 - **`examples/blog_writer.py`** - Multi-agent blog writing with helix coordination
@@ -282,8 +310,8 @@ validate_precision() → bool
 - **`examples/benchmark_comparison.py`** - Architecture performance comparison
 
 ### Performance Analysis
-- **`benchmark_enhanced_systems.py`** - Comprehensive system benchmarking
-- **`test_parallel_performance.py`** - Concurrent processing validation
+- **`benchmarks/benchmark_enhanced_systems.py`** - Comprehensive system benchmarking
+- **`tests/performance/test_parallel_performance.py`** - Concurrent processing validation
 
 ---
 
@@ -300,20 +328,21 @@ validate_precision() → bool
 
 ### Documentation Configuration
 - **`config/README.md`** - Configuration file documentation
+- **`docs/getting-started/README.md`** - Documentation navigation guide
 
 ---
 
 ## Validation & Results
 
 ### Core Validation Scripts
-- **`validate_felix_framework.py`** - Comprehensive system validation
-- **`validate_mathematics.py`** - Mathematical model precision validation
-- **`validate_openscad.py`** - OpenSCAD prototype comparison
+- **`tests/validation/validate_felix_framework.py`** - Comprehensive system validation
+- **`tests/validation/validate_mathematics.py`** - Mathematical model precision validation
+- **`tests/validation/validate_openscad.py`** - OpenSCAD prototype comparison
 
-### Test Results Archive (`test_results/`)
+### Test Results Archive (`tests/test_results/`)
 **Statistical Validation Results**:
-- `mathematical_validation_results.json` - Precision validation (<1e-12 error)
-- `test_comprehensive.json` - Full system validation results
+- `tests/test_results/mathematical_validation_results.json` - Precision validation (<1e-12 error)
+- `tests/test_results/test_comprehensive.json` - Full system validation results
 
 **LLM Integration Results**:
 - `blog_output*.json` (6 files) - Multi-agent blog writing experiments
@@ -321,11 +350,11 @@ validate_precision() → bool
 - `token_test*.json` (3 files) - Token budget optimization results
 
 **Performance Benchmarks**:
-- `benchmark_results.json` - Architecture comparison results
-- `verification_results_*.json` - Randomness and statistical validation
+- `benchmarks/results/benchmark_results.json` - Architecture comparison results
+- `tests/test_results/verification_results_*.json` - Randomness and statistical validation
 
 ### Research Artifacts
-- **`ENHANCED_SYSTEMS_BENCHMARK_RESULTS.md`** - Detailed benchmark analysis
+- **`benchmarks/results/ENHANCED_SYSTEMS_BENCHMARK_RESULTS.md`** - Detailed benchmark analysis
 - **`felix_memory.db`** - SQLite knowledge store with experimental data
 
 ---
@@ -435,22 +464,22 @@ pip install -r requirements.txt
 
 ### Core Validation
 ```bash
-python -m pytest tests/unit/ -v                    # Run all unit tests
-python validate_felix_framework.py                 # Full system validation
-python validate_mathematics.py                     # Mathematical precision
+python -m pytest tests/unit/ -v                                     # Run all unit tests
+python tests/validation/validate_felix_framework.py                 # Full system validation
+python tests/validation/validate_mathematics.py                     # Mathematical precision
 ```
 
 ### LLM Demonstrations (requires LM Studio)
 ```bash
-python examples/blog_writer.py "AI ethics"         # Single-model blog writing
-python examples/adaptive_blog_writer.py "Topic"    # Dynamic agent spawning
-python examples/test_multi_model.py                # Multi-model validation
+python examples/blog_writer.py "AI ethics"                         # Single-model blog writing
+python examples/adaptive_blog_writer.py "Topic"                    # Dynamic agent spawning
+python examples/test_multi_model.py                                # Multi-model validation
 ```
 
 ### Performance Analysis
 ```bash
-python benchmark_enhanced_systems.py               # System benchmarking
-python examples/benchmark_comparison.py            # Architecture comparison
+python benchmarks/benchmark_enhanced_systems.py               # System benchmarking
+python examples/benchmark_comparison.py                       # Architecture comparison
 ```
 
 ---
@@ -481,4 +510,4 @@ The Felix Framework successfully demonstrates that helix-based cognitive archite
 ---
 
 *Generated: 2025-08-21*  
-*Felix Framework v1.0 - Research Complete*
+*Felix Framework v0.5.0 - Research never ends*

@@ -14,7 +14,7 @@ The Felix Framework initial prototype requires technology stack decisions that b
 - **Research timeline**: 4-week initial prototype delivery
 - **Mathematical requirements**: 3D geometric calculations, parametric equations
 - **Testing requirements**: Hypothesis validation, performance benchmarking
-- **Documentation requirements**: Extensive research logging per DEVELOPMENT_RULES.md
+- **Documentation requirements**: Extensive research logging per docs/guides/development/DEVELOPMENT_RULES.md
 - **Reproducibility**: Scientific method compliance
 - **Performance measurement**: Baseline comparisons needed
 
