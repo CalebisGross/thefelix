@@ -295,7 +295,7 @@ Named after the **helix** shape that defines our architecture - "Felix" represen
 ## 🚀 Get Started Today
 
 ```bash
-git clone https://github.com/yourusername/thefelix.git
+git clone https://github.com/CalebisGross/thefelix.git
 cd thefelix && python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt && python validate_felix_framework.py
 echo "🌪️ Welcome to the helix revolution!"
@@ -303,4 +303,4 @@ echo "🌪️ Welcome to the helix revolution!"
 
 **Ready to spiral into the future of multi-agent systems?** 
 
-[📖 Read the Docs](./docs/) | [🔧 Quick Start](#quick-start) | [💬 Join Discussion](https://github.com/yourusername/thefelix/discussions)
+[📖 Read the Docs](./docs/) | [🔧 Quick Start](#quick-start) | [💬 Join Discussion](https://github.com/CalebisGross/thefelix/discussions)

@@ -24,7 +24,7 @@ Before contributing, please read our [DEVELOPMENT_RULES.md](./DEVELOPMENT_RULES.
 
 ```bash
 # 1. Fork and clone the repository
-git clone https://github.com/yourusername/thefelix.git
+git clone https://github.com/CalebisGross/thefelix.git
 cd thefelix
 
 # 2. Create virtual environment
