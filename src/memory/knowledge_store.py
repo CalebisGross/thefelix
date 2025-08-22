@@ -42,8 +42,8 @@ class KnowledgeEntry:
     source_agent: str
     domain: str
     tags: List[str] = field(default_factory=list)
-    created_at: float = field(default_factory=time.time)
-    updated_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
+    updated_at: float = field(default_factory=lambda: time.time())
     access_count: int = 0
     success_rate: float = 1.0
     related_entries: List[str] = field(default_factory=list)
@@ -354,7 +354,16 @@ class KnowledgeStore:
             params.extend(query.tags)
         
         # Add ordering and limit
-        sql_parts.append("ORDER BY ke.confidence_level DESC, ke.success_rate DESC, ke.updated_at DESC")
+        sql_parts.append("""ORDER BY 
+            CASE ke.confidence_level 
+                WHEN 'verified' THEN 4 
+                WHEN 'high' THEN 3 
+                WHEN 'medium' THEN 2 
+                WHEN 'low' THEN 1 
+                ELSE 0 
+            END DESC, 
+            ke.success_rate DESC, 
+            ke.updated_at DESC""")
         sql_parts.append("LIMIT ?")
         params.append(query.limit)
         

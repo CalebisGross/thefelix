@@ -45,7 +45,7 @@ class ProgressiveProcessor:
     _continuation_tokens: Dict[int, str] = field(default_factory=dict)
 
     def __post_init__(self):
-        self._total_chunks = (len(self.full_content) + self.chunk_size - 1) // self.chunk_size
+        self._total_chunks = max(1, (len(self.full_content) + self.chunk_size - 1) // self.chunk_size)
         self._generate_continuation_tokens()
 
     def _generate_continuation_tokens(self):
@@ -72,7 +72,7 @@ class ProgressiveProcessor:
             found_index = -1
             for idx, token in self._continuation_tokens.items():
                 if token == requested_token:
-                    found_index = idx + 1 # Next chunk
+                    found_index = idx  # Token points to its own chunk index
                     break
             
             if found_index == -1 or found_index >= self._total_chunks:
@@ -82,8 +82,8 @@ class ProgressiveProcessor:
         start_idx = current_index * self.chunk_size
         end_idx = min((current_index + 1) * self.chunk_size, len(self.full_content))
         
-        if start_idx >= len(self.full_content):
-            return None # No more content
+        if current_index >= self._total_chunks:
+            return None # No more chunks
 
         content_chunk = self.full_content[start_idx:end_idx]
         is_final = (current_index == self._total_chunks - 1)

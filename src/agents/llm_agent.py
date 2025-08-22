@@ -23,14 +23,14 @@ import logging
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 
-from agents.agent import Agent, AgentState
-from core.helix_geometry import HelixGeometry
-from llm.lm_studio_client import LMStudioClient, LLMResponse, RequestPriority
-from llm.multi_server_client import LMStudioClientPool
-from llm.token_budget import TokenBudgetManager, TokenAllocation
-from communication.central_post import Message, MessageType
-from pipeline.chunking import ChunkedResult, ProgressiveProcessor, ContentSummarizer
-from agents.prompt_optimization import PromptOptimizer, PromptMetrics, PromptContext
+from src.agents.agent import Agent, AgentState
+from src.core.helix_geometry import HelixGeometry
+from src.llm.lm_studio_client import LMStudioClient, LLMResponse, RequestPriority
+from src.llm.multi_server_client import LMStudioClientPool
+from src.llm.token_budget import TokenBudgetManager, TokenAllocation
+from src.communication.central_post import Message, MessageType
+from src.pipeline.chunking import ChunkedResult, ProgressiveProcessor, ContentSummarizer
+from src.agents.prompt_optimization import PromptOptimizer, PromptMetrics, PromptContext
 
 logger = logging.getLogger(__name__)
 

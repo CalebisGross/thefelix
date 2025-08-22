@@ -101,8 +101,8 @@ pip install -r requirements.txt        # Install all dependencies
 ```bash
 python -m pytest tests/unit/ -v        # Run all unit tests (107+ tests)
 python -m pytest tests/unit/ -v --cov=src --cov-report=html  # With coverage
-python validate_felix_framework.py     # Run comprehensive validation
-python validate_mathematics.py         # Validate mathematical model
+python tests/validation/validate_felix_framework.py     # Run comprehensive validation
+python tests/validation/validate_mathematics.py         # Validate mathematical model
 python -m pytest tests/unit/test_helix_geometry.py -v  # Test specific module
 
 # Performance and integration tests
@@ -156,7 +156,7 @@ python examples/benchmark_comparison.py --output benchmark_results.json
 ### For Understanding the Completed Research
 1. **Review RESEARCH_LOG.md** - Complete research journey and findings
 2. **Understand the geometric model** - Review `thefelix.md` and `docs/architecture/core/mathematical_model.md`
-3. **Examine validation results** - Run `python validate_felix_framework.py`
+3. **Examine validation results** - Run `python tests/validation/validate_felix_framework.py`
 4. **Study the three architectures** - Helix-spoke (O(N)), Linear pipeline (O(N×M)), Mesh (O(N²))
 5. **Review hypothesis outcomes** - See `docs/architecture/core/hypothesis_mathematics.md` for statistical frameworks
 
@@ -255,7 +255,7 @@ sphinx>=7.1.0, sphinx-rtd-theme>=1.3.0
 
 ### Mathematical Validation Failures
 - **Error**: "Precision validation failed" → Check numpy version compatibility
-- **Fix**: Ensure `numpy>=1.26.0` and run `python validate_mathematics.py`
+- **Fix**: Ensure `numpy>=1.26.0` and run `python tests/validation/validate_mathematics.py`
 
 ### LLM Connection Issues
 - **Error**: "Connection refused" → LM Studio not running

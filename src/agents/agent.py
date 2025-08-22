@@ -17,9 +17,9 @@ Key Features:
 - Task assignment and processing with performance measurement
 
 Mathematical references:
-- docs/mathematical_model.md, Section 4: Agent distribution functions and density evolution
-- docs/hypothesis_mathematics.md, Section H1: Workload distribution statistical analysis
-- docs/hypothesis_mathematics.md, Section H3: Attention focusing mechanism and agent density
+- docs/architecture/core/mathematical_model.md, Section 4: Agent distribution functions and density evolution
+- docs/architecture/core/hypothesis_mathematics.md, Section H1: Workload distribution statistical analysis
+- docs/architecture/core/hypothesis_mathematics.md, Section H3: Attention focusing mechanism and agent density
 
 Implementation supports testing of Hypotheses H1 (task distribution) and H3 (attention focusing).
 """
@@ -27,7 +27,7 @@ Implementation supports testing of Hypotheses H1 (task distribution) and H3 (att
 import random
 from enum import Enum
 from typing import Optional, List, Tuple, Any
-from core.helix_geometry import HelixGeometry
+from src.core.helix_geometry import HelixGeometry
 
 
 class AgentState(Enum):
@@ -48,7 +48,7 @@ class Agent:
     the lifecycle.
     """
     
-    def __init__(self, agent_id: str, spawn_time: float, helix: HelixGeometry):
+    def __init__(self, agent_id: str, spawn_time: float, helix: HelixGeometry, velocity: Optional[float] = None):
         """
         Initialize agent with lifecycle parameters.
         
@@ -56,6 +56,7 @@ class Agent:
             agent_id: Unique identifier for the agent
             spawn_time: Time when agent becomes active (0.0 to 1.0)
             helix: Helix geometry for path calculation
+            velocity: Fixed velocity for testing (if None, uses random 0.7-1.3)
             
         Raises:
             ValueError: If parameters are invalid
@@ -72,7 +73,7 @@ class Agent:
         self._spawn_timestamp: Optional[float] = None
         
         # Non-linear progression mechanics
-        self._velocity: float = random.uniform(0.7, 1.3)  # Base velocity multiplier
+        self._velocity: float = velocity if velocity is not None else random.uniform(0.7, 1.3)  # Base velocity multiplier
         self._pause_until: Optional[float] = None  # Pause agent until this time
         self._acceleration: float = 1.0  # Current acceleration factor
         self._confidence_history: List[float] = []  # Track confidence over time

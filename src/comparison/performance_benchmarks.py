@@ -25,7 +25,7 @@ import contextlib
 import sys
 import traceback
 
-from communication.central_post import Message, MessageType
+from src.communication.central_post import Message, MessageType
 
 
 class MetricType(Enum):

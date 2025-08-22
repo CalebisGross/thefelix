@@ -6,6 +6,16 @@ This script recreates key calculations from thefelix.md to ensure
 our Python implementation matches the geometric prototype.
 """
 
+import sys
+import os
+from pathlib import Path
+
+# Add project root to Python path for imports
+current_dir = Path(__file__).parent
+project_root = current_dir.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
 import math
 from src.core.helix_geometry import HelixGeometry
 

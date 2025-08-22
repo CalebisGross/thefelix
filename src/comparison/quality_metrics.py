@@ -137,11 +137,15 @@ class BLEUCalculator:
             )
             precisions.append(precision)
         
-        # Calculate geometric mean of precisions
-        if any(p == 0 for p in precisions):
-            return 0.0
+        # Calculate geometric mean of precisions with smoothing
+        # Apply smoothing to avoid zero precision for partial matches
+        smoothed_precisions = []
+        for p in precisions:
+            # Add small epsilon for smoothing when precision is 0
+            smoothed_p = max(p, 1e-7)
+            smoothed_precisions.append(smoothed_p)
         
-        geometric_mean = math.exp(sum(math.log(p) for p in precisions) / len(precisions))
+        geometric_mean = math.exp(sum(math.log(p) for p in smoothed_precisions) / len(smoothed_precisions))
         
         # Apply brevity penalty
         candidate_length = len(candidate_tokens)

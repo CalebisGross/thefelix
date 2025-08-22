@@ -116,13 +116,13 @@ pip install -r requirements.txt
 ### Verification
 ```bash
 # Run comprehensive validation
-python validate_felix_framework.py
+python tests/validation/validate_felix_framework.py
 
 # Run test suite  
 python -m pytest tests/unit/ -v
 
 # Check mathematical precision
-python validate_mathematics.py
+python tests/validation/validate_mathematics.py
 ```
 
 ## 📚 Examples & Use Cases
@@ -325,6 +325,7 @@ If you use Felix Framework in research, please cite:
 @software{felix_framework_2025,
   title={Felix Framework: Helix-Based Multi-Agent Cognitive Architecture},
   author={Caleb Gross},
+  collaborator={Jason Bennitt}
   year={2025},
   url={https://github.com/CalebisGross/thefelix},
   note={Research-validated geometric approach to multi-agent coordination}
@@ -346,7 +347,7 @@ Named after the **helix** shape that defines our architecture - "Felix" represen
 ```bash
 git clone https://github.com/CalebisGross/thefelix.git
 cd thefelix && python3 -m venv venv && source venv/bin/activate
-pip install -r requirements.txt && python validate_felix_framework.py
+pip install -r requirements.txt && python tests/validation/validate_felix_framework.py
 echo "🌪️ Welcome to the helix revolution!"
 ```
 

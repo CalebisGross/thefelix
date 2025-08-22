@@ -21,6 +21,7 @@ from agents.dynamic_spawning import (
     ConfidenceTrend, ContentIssue, ConfidenceMetrics, ContentAnalysis,
     SpawningDecision
 )
+from communication.spoke import Message, MessageType
 
 
 class TestConfidenceMonitor:
@@ -39,10 +40,8 @@ class TestConfidenceMonitor:
         monitor = ConfidenceMonitor()
         
         message = Message(
-            id="test_msg",
-            sender="agent_1",
-            recipient="central_post",
-            message_type=MessageType.RESULT,
+            sender_id="agent_1",
+            message_type=MessageType.STATUS_UPDATE,
             content={
                 "confidence": 0.85,
                 "agent_type": "research",
@@ -82,10 +81,9 @@ class TestConfidenceMonitor:
         # Add sample confidence data
         for i, confidence in enumerate([0.8, 0.75, 0.9, 0.85]):
             message = Message(
-                id=f"msg_{i}",
-                sender=f"agent_{i}",
-                recipient="central_post",
-                message_type=MessageType.RESULT,
+                message_id=f"msg_{i}",
+                sender_id=f"agent_{i}",
+                message_type=MessageType.STATUS_UPDATE,
                 content={
                     "confidence": confidence,
                     "agent_type": "research",
@@ -109,10 +107,9 @@ class TestConfidenceMonitor:
         
         # Add low confidence data
         message = Message(
-            id="low_conf",
-            sender="agent_1",
-            recipient="central_post",
-            message_type=MessageType.RESULT,
+            message_id="low_conf",
+            sender_id="agent_1",
+            message_type=MessageType.STATUS_UPDATE,
             content={
                 "confidence": 0.6,
                 "agent_type": "research",
@@ -131,10 +128,9 @@ class TestConfidenceMonitor:
         
         # Add high confidence data
         message = Message(
-            id="high_conf",
-            sender="agent_1",
-            recipient="central_post",
-            message_type=MessageType.RESULT,
+            message_id="high_conf",
+            sender_id="agent_1",
+            message_type=MessageType.STATUS_UPDATE,
             content={
                 "confidence": 0.9,
                 "agent_type": "research",
@@ -153,10 +149,9 @@ class TestConfidenceMonitor:
         
         # Low confidence should recommend critic
         message = Message(
-            id="low_conf",
-            sender="agent_1",
-            recipient="central_post",
-            message_type=MessageType.RESULT,
+            message_id="low_conf",
+            sender_id="agent_1",
+            message_type=MessageType.STATUS_UPDATE,
             content={
                 "confidence": 0.5,
                 "agent_type": "research",
@@ -195,10 +190,9 @@ class TestContentAnalyzer:
         analyzer = ContentAnalyzer()
         
         message = Message(
-            id="test",
-            sender="agent_1",
-            recipient="central_post",
-            message_type=MessageType.RESULT,
+            message_id="test",
+            sender_id="agent_1",
+            message_type=MessageType.STATUS_UPDATE,
             content={
                 "result": "The results show X is true. However, the data contradicts this finding."
             },
@@ -215,10 +209,9 @@ class TestContentAnalyzer:
         analyzer = ContentAnalyzer()
         
         message = Message(
-            id="test",
-            sender="agent_1",
-            recipient="central_post",
-            message_type=MessageType.RESULT,
+            message_id="test",
+            sender_id="agent_1",
+            message_type=MessageType.STATUS_UPDATE,
             content={
                 "result": "This is a complex and intricate problem requiring further analysis with multiple factors and sophisticated approaches."
             },
@@ -235,10 +228,9 @@ class TestContentAnalyzer:
         analyzer = ContentAnalyzer()
         
         message = Message(
-            id="test",
-            sender="agent_1",
-            recipient="central_post",
-            message_type=MessageType.RESULT,
+            message_id="test",
+            sender_id="agent_1",
+            message_type=MessageType.STATUS_UPDATE,
             content={
                 "result": "We need more information and additional research. There are gaps in our analysis."
             },
@@ -369,10 +361,9 @@ class TestDynamicSpawning:
         """Test analysis with no spawning needed."""
         # High confidence message
         message = Message(
-            id="high_conf",
-            sender="agent_1",
-            recipient="central_post",
-            message_type=MessageType.RESULT,
+            message_id="high_conf",
+            sender_id="agent_1",
+            message_type=MessageType.STATUS_UPDATE,
             content={
                 "confidence": 0.9,
                 "agent_type": "research",
@@ -382,7 +373,11 @@ class TestDynamicSpawning:
             timestamp=time.time()
         )
         
-        current_agents = [Mock(), Mock()]  # 2 agents
+        mock_agent1 = Mock()
+        mock_agent1.max_tokens = 800
+        mock_agent2 = Mock()
+        mock_agent2.max_tokens = 800
+        current_agents = [mock_agent1, mock_agent2]  # 2 agents
         new_agents = self.spawner.analyze_and_spawn([message], current_agents, time.time())
         
         assert len(new_agents) == 0  # No spawning needed
@@ -391,10 +386,9 @@ class TestDynamicSpawning:
         """Test spawning triggered by low confidence."""
         # Low confidence message
         message = Message(
-            id="low_conf",
-            sender="agent_1",
-            recipient="central_post",
-            message_type=MessageType.RESULT,
+            message_id="low_conf",
+            sender_id="agent_1",
+            message_type=MessageType.STATUS_UPDATE,
             content={
                 "confidence": 0.5,
                 "agent_type": "research",
@@ -404,7 +398,11 @@ class TestDynamicSpawning:
             timestamp=time.time()
         )
         
-        current_agents = [Mock(), Mock()]
+        mock_agent1 = Mock()
+        mock_agent1.max_tokens = 800
+        mock_agent2 = Mock()
+        mock_agent2.max_tokens = 800
+        current_agents = [mock_agent1, mock_agent2]
         new_agents = self.spawner.analyze_and_spawn([message], current_agents, time.time())
         
         # Should spawn at least one agent for low confidence
@@ -414,10 +412,9 @@ class TestDynamicSpawning:
         """Test spawning triggered by content analysis."""
         # Message with contradictions
         message = Message(
-            id="contradiction",
-            sender="agent_1",
-            recipient="central_post",
-            message_type=MessageType.RESULT,
+            message_id="contradiction",
+            sender_id="agent_1",
+            message_type=MessageType.STATUS_UPDATE,
             content={
                 "confidence": 0.8,
                 "agent_type": "research",
@@ -427,7 +424,9 @@ class TestDynamicSpawning:
             timestamp=time.time()
         )
         
-        current_agents = [Mock()]  # Small team to allow expansion
+        mock_agent = Mock()
+        mock_agent.max_tokens = 800
+        current_agents = [mock_agent]  # Small team to allow expansion
         new_agents = self.spawner.analyze_and_spawn([message], current_agents, time.time())
         
         # Should consider spawning for content issues
@@ -459,10 +458,9 @@ class TestIntegrationScenarios:
         messages = []
         for i, conf in enumerate([0.8, 0.75, 0.65, 0.6, 0.55]):
             message = Message(
-                id=f"msg_{i}",
-                sender="agent_1",
-                recipient="central_post",
-                message_type=MessageType.RESULT,
+                message_id=f"msg_{i}",
+                sender_id="agent_1",
+                message_type=MessageType.STATUS_UPDATE,
                 content={
                     "confidence": conf,
                     "agent_type": "research",
@@ -473,7 +471,11 @@ class TestIntegrationScenarios:
             )
             messages.append(message)
         
-        current_agents = [Mock(), Mock()]
+        mock_agent1 = Mock()
+        mock_agent1.max_tokens = 800
+        mock_agent2 = Mock()
+        mock_agent2.max_tokens = 800
+        current_agents = [mock_agent1, mock_agent2]
         new_agents = spawner.analyze_and_spawn(messages, current_agents, current_time + 5)
         
         # System should recognize declining trend and consider spawning
@@ -488,10 +490,9 @@ class TestIntegrationScenarios:
         
         # Complex task with multiple issues
         message = Message(
-            id="complex",
-            sender="agent_1",
-            recipient="central_post",
-            message_type=MessageType.RESULT,
+            message_id="complex",
+            sender_id="agent_1",
+            message_type=MessageType.STATUS_UPDATE,
             content={
                 "confidence": 0.6,
                 "agent_type": "research",
@@ -501,7 +502,9 @@ class TestIntegrationScenarios:
             timestamp=time.time()
         )
         
-        current_agents = [Mock()]  # Small team
+        mock_agent = Mock()
+        mock_agent.max_tokens = 800
+        current_agents = [mock_agent]  # Small team
         new_agents = spawner.analyze_and_spawn([message], current_agents, time.time())
         
         # Should consider spawning for complex task

@@ -13,9 +13,19 @@ Validates:
 5. Attention focusing mechanism properties
 
 Mathematical references:
-- docs/mathematical_model.md: Formal mathematical specifications
-- docs/hypothesis_mathematics.md: Statistical formulations and proofs
+- docs/architecture/core/mathematical_model.md: Formal mathematical specifications
+- docs/architecture/core/hypothesis_mathematics.md: Statistical formulations and proofs
 """
+
+import sys
+import os
+from pathlib import Path
+
+# Add project root to Python path for imports
+current_dir = Path(__file__).parent
+project_root = current_dir.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 import math
 import numpy as np

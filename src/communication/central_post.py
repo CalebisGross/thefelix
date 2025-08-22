@@ -16,8 +16,8 @@ Key Features:
 - Scalability up to 133 agents (matching OpenSCAD model parameters)
 
 Mathematical references:
-- docs/mathematical_model.md, Section 5: Spoke geometry and communication complexity
-- docs/hypothesis_mathematics.md, Section H2: Communication overhead analysis and proofs
+- docs/architecture/core/mathematical_model.md, Section 5: Spoke geometry and communication complexity
+- docs/architecture/core/hypothesis_mathematics.md, Section H2: Communication overhead analysis and proofs
 - Theoretical proof of O(N) vs O(N²) scaling advantage in hypothesis documentation
 
 Implementation supports rigorous testing of Hypothesis H2 communication efficiency claims.
@@ -35,9 +35,9 @@ from queue import Queue, Empty
 import asyncio
 
 # Memory system imports
-from memory.knowledge_store import KnowledgeStore, KnowledgeEntry, KnowledgeType, ConfidenceLevel
-from memory.task_memory import TaskMemory, TaskPattern, TaskOutcome
-from memory.context_compression import ContextCompressor, CompressionStrategy
+from src.memory.knowledge_store import KnowledgeStore, KnowledgeEntry, KnowledgeType, ConfidenceLevel
+from src.memory.task_memory import TaskMemory, TaskPattern, TaskOutcome
+from src.memory.context_compression import ContextCompressor, CompressionStrategy
 
 # Dynamic spawning imports - moved to avoid circular imports
 

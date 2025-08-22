@@ -132,7 +132,7 @@ class TestAgentLifecycle:
     
     def test_agent_position_updates_with_progress(self, standard_helix, mock_task):
         """Test agent position updates as it progresses along helix."""
-        agent = Agent(agent_id="mover", spawn_time=0.1, helix=standard_helix)
+        agent = Agent(agent_id="mover", spawn_time=0.1, helix=standard_helix, velocity=1.0)
         agent.spawn(current_time=0.3, task=mock_task)
         
         # Initial position at spawn
@@ -153,7 +153,7 @@ class TestAgentLifecycle:
     
     def test_agent_completes_at_helix_end(self, standard_helix, mock_task):
         """Test agent completes when reaching end of helix."""
-        agent = Agent(agent_id="completer", spawn_time=0.0, helix=standard_helix)
+        agent = Agent(agent_id="completer", spawn_time=0.0, helix=standard_helix, velocity=1.0)
         agent.spawn(current_time=0.0, task=mock_task)
         
         # Move to end of helix (t=1.0)
@@ -165,7 +165,7 @@ class TestAgentLifecycle:
     
     def test_agent_progress_calculation(self, standard_helix, mock_task):
         """Test agent progress is calculated correctly."""
-        agent = Agent(agent_id="progressor", spawn_time=0.2, helix=standard_helix)
+        agent = Agent(agent_id="progressor", spawn_time=0.2, helix=standard_helix, velocity=1.0)
         agent.spawn(current_time=0.4, task=mock_task)
         
         # At spawn: progress should be 0.0 (always starts at top)

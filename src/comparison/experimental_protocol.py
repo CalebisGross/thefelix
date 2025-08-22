@@ -22,7 +22,7 @@ This enables scientifically rigorous experimental validation of
 research hypotheses with proper controls and statistical methodology
 suitable for peer review and publication.
 
-Mathematical reference: docs/hypothesis_mathematics.md, Experimental Design
+Mathematical reference: docs/architecture/core/hypothesis_mathematics.md, Experimental Design
 """
 
 import random
@@ -30,7 +30,7 @@ import itertools
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 
-from core.helix_geometry import HelixGeometry
+from src.core.helix_geometry import HelixGeometry
 from .architecture_comparison import ArchitectureComparison, ExperimentalConfig
 
 

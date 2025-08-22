@@ -18,7 +18,7 @@ Key Features:
 This enables rigorous validation of research hypotheses through controlled
 experiments with proper statistical methodology for peer review.
 
-Mathematical reference: docs/hypothesis_mathematics.md, Sections H1, H2, H3
+Mathematical reference: docs/architecture/core/hypothesis_mathematics.md, Sections H1, H2, H3
 """
 
 import sys
@@ -40,12 +40,12 @@ project_root = src_dir.parent
 if str(src_dir) not in sys.path:
     sys.path.insert(0, str(src_dir))
 
-from core.helix_geometry import HelixGeometry
-from agents.agent import Agent, create_openscad_agents
-from communication.central_post import CentralPost
-from communication.spoke import SpokeManager
-from communication.mesh import MeshCommunication
-from pipeline.linear_pipeline import LinearPipeline
+from src.core.helix_geometry import HelixGeometry
+from src.agents.agent import Agent, create_openscad_agents
+from src.communication.central_post import CentralPost, Message, MessageType
+from src.communication.spoke import SpokeManager
+from src.communication.mesh import MeshCommunication, MeshMessage
+from src.pipeline.linear_pipeline import LinearPipeline
 
 # Handle relative import for statistical_analysis
 try:
@@ -178,6 +178,26 @@ class ArchitectureComparison:
             for agent in agents:
                 if agent.state.value == "active":
                     agent.update_position(current_time)
+            
+            # Simulate spoke communications from active agents
+            active_agents = [a for a in agents if a.state.value == "active"]
+            for agent in active_agents[::3]:  # Every 3rd agent sends messages
+                message = Message(
+                    sender_id=agent.agent_id,
+                    message_type=MessageType.STATUS_UPDATE,
+                    content={
+                        "agent_id": agent.agent_id,
+                        "status": "processing",
+                        "time": current_time,
+                        "position": agent.current_position
+                    },
+                    timestamp=current_time
+                )
+                try:
+                    spoke_manager.send_message(agent.agent_id, message)
+                except ValueError:
+                    # Agent not yet registered, skip
+                    pass
             
             # Process communications
             spoke_manager.process_all_messages()
@@ -336,6 +356,22 @@ class ArchitectureComparison:
             for agent in agents:
                 if agent.state.value == "active":
                     agent.update_position(current_time)
+            
+            # Simulate mesh communications between active agents
+            active_agents = [a for a in agents if a.state.value == "active"]
+            if len(active_agents) >= 2:
+                # Each active agent sends messages to some other active agents
+                for sender in active_agents[::2]:  # Every 2nd agent sends messages
+                    for recipient in active_agents:
+                        if sender.agent_id != recipient.agent_id:
+                            message = MeshMessage(
+                                sender_id=sender.agent_id,
+                                recipient_id=recipient.agent_id,
+                                message_type="STATUS_UPDATE",
+                                content={"status": "processing", "time": current_time},
+                                timestamp=current_time
+                            )
+                            mesh.send_message(message)
             
             # Process mesh communications
             mesh.process_all_messages()

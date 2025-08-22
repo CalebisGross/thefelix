@@ -331,8 +331,8 @@ class LinearPipeline:
                 mock_task = type('Task', (), {'id': f'task_{agent.agent_id}'})()
                 agent.spawn(current_time, mock_task)
                 
-                # Add spawned agent to stage 0 if capacity allows
-                if not self.stages[0].is_full():
+                # Add spawned agent to stage 0 if capacity allows and not already assigned
+                if agent.current_stage == -1 and not self.stages[0].is_full():
                     self.stages[0].add_agent(agent)
     
     def advance_agents(self) -> None:
