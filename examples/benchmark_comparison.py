@@ -28,14 +28,14 @@ from pathlib import Path
 from dataclasses import dataclass, asdict
 
 # Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.helix_geometry import HelixGeometry
-from llm.lm_studio_client import LMStudioClient, LMStudioConnectionError
-from agents.llm_agent import LLMTask
-from agents.specialized_agents import create_specialized_team
-from communication.central_post import CentralPost
-from communication.spoke import SpokeManager
+from src.core.helix_geometry import HelixGeometry
+from src.llm.lm_studio_client import LMStudioClient, LMStudioConnectionError
+from src.agents.llm_agent import LLMTask
+from src.agents.specialized_agents import create_specialized_team
+from src.communication.central_post import CentralPost
+from src.communication.spoke import SpokeManager
 
 
 @dataclass

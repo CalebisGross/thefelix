@@ -10,17 +10,18 @@ import sys
 import time
 import asyncio
 import statistics
+import pytest
 from pathlib import Path
 from typing import Dict, List, Any
 
 # Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from core.helix_geometry import HelixGeometry
-from llm.lm_studio_client import LMStudioClient, LMStudioConnectionError
-from llm.token_budget import TokenBudgetManager
-from agents.llm_agent import LLMTask
-from agents.specialized_agents import create_specialized_team
+from src.core.helix_geometry import HelixGeometry
+from src.llm.lm_studio_client import LMStudioClient, LMStudioConnectionError
+from src.llm.token_budget import TokenBudgetManager
+from src.agents.llm_agent import LLMTask
+from src.agents.specialized_agents import create_specialized_team
 
 
 class MockLMStudioClient:
@@ -103,6 +104,7 @@ class MockLMStudioClient:
         return f"Mock system prompt for {agent_type} agent"
 
 
+@pytest.mark.asyncio
 async def test_parallel_performance():
     """Test parallel implementation performance."""
     print("Felix Framework Parallel Performance Test")
@@ -280,11 +282,17 @@ async def test_parallel_performance():
     normal_simple = next(r for r in results if not r["strict_mode"] and r["complexity"] == "simple")
     strict_simple = next(r for r in results if r["strict_mode"] and r["complexity"] == "simple")
     
-    speed_improvement = normal_simple["avg_duration"] / strict_simple["avg_duration"]
-    token_reduction = normal_simple["avg_tokens"] / strict_simple["avg_tokens"]
+    if strict_simple["avg_duration"] > 0:
+        speed_improvement = normal_simple["avg_duration"] / strict_simple["avg_duration"]
+        print(f"  Speed improvement (strict vs normal): {speed_improvement:.1f}x faster")
+    else:
+        print(f"  Speed improvement: Cannot calculate (zero duration)")
     
-    print(f"  Speed improvement (strict vs normal): {speed_improvement:.1f}x faster")
-    print(f"  Token reduction (strict vs normal): {token_reduction:.1f}x fewer tokens")
+    if strict_simple["avg_tokens"] > 0:
+        token_reduction = normal_simple["avg_tokens"] / strict_simple["avg_tokens"]
+        print(f"  Token reduction (strict vs normal): {token_reduction:.1f}x fewer tokens")
+    else:
+        print(f"  Token reduction: Cannot calculate (zero tokens)")
     
     print(f"\n✅ Parallel processing test completed successfully!")
     return results

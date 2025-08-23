@@ -6,6 +6,10 @@ This script shows agents spawning and progressing along the helix
 using the exact parameters from thefelix.md.
 """
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
 from src.core.helix_geometry import HelixGeometry
 from src.agents.agent import create_openscad_agents
 

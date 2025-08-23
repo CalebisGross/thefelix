@@ -17,9 +17,9 @@ from pathlib import Path
 from typing import List, Dict, Any
 
 # Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from blog_writer import FelixBlogWriter
+from examples.blog_writer import FelixBlogWriter
 
 
 def run_verification_test(topic: str, num_runs: int = 3) -> List[Dict[str, Any]]:

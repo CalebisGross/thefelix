@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from pipeline.chunking import (
+from src.pipeline.chunking import (
     ChunkedResult, ProgressiveProcessor, ContentSummarizer
 )
 

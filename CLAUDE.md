@@ -63,8 +63,8 @@ Key requirements from docs/guides/development/DEVELOPMENT_RULES.md:
   - `test_architecture_comparison.py` - Statistical comparison framework
 - `validate_felix_framework.py` - Comprehensive system validation
 - `validate_mathematics.py` - Mathematical model validation
-- `demo_agent_system.py` - Agent system demonstration
-- `demo_communication_system.py` - Communication demo
+- `tests/demos/demo_agent_system.py` - Agent system demonstration
+- `tests/demos/demo_communication_system.py` - Communication demo
 
 ## Development Workflow
 
@@ -136,8 +136,8 @@ python examples/benchmark_comparison.py --task "Research renewable energy" --run
 
 ### Core Demonstrations
 ```bash
-python demo_agent_system.py           # Agent lifecycle demonstration
-python demo_communication_system.py   # Communication system demo
+python tests/demos/demo_agent_system.py           # Agent lifecycle demonstration
+python tests/demos/demo_communication_system.py   # Communication system demo
 
 # Visualization (terminal-based)
 python visualization/helix_monitor.py --mode terminal --demo

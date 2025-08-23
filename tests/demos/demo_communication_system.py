@@ -13,6 +13,10 @@ Features demonstrated:
 - Task assignment workflow
 """
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
 from src.core.helix_geometry import HelixGeometry
 from src.agents.agent import create_openscad_agents
 from src.communication import CentralPost, Message, MessageType, SpokeManager

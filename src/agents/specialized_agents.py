@@ -21,8 +21,8 @@ from dataclasses import dataclass
 from src.agents.llm_agent import LLMAgent, LLMTask, LLMResult
 from src.agents.agent import generate_spawn_times
 from src.core.helix_geometry import HelixGeometry
-from llm.lm_studio_client import LMStudioClient
-from llm.token_budget import TokenBudgetManager
+from src.llm.lm_studio_client import LMStudioClient
+from src.llm.token_budget import TokenBudgetManager
 
 
 class ResearchAgent(LLMAgent):

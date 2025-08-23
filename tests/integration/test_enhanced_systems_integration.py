@@ -24,10 +24,10 @@ from src.communication.central_post import CentralPost, AgentFactory
 from src.memory.knowledge_store import KnowledgeStore, KnowledgeType, ConfidenceLevel
 from src.agents.llm_agent import LLMAgent
 from src.llm.lm_studio_client import LMStudioClient
-from src.chunking.progressive_processor import ProgressiveProcessor, ChunkedResult
-from src.optimization.prompt_optimizer import PromptOptimizer
+from src.pipeline.chunking import ProgressiveProcessor, ChunkedResult
+from src.agents.prompt_optimization import PromptOptimizer
 from src.comparison.quality_metrics import QualityMetricsCalculator, DomainType
-from src.dynamic_spawning.dynamic_spawning import DynamicSpawning
+from src.agents.dynamic_spawning import DynamicSpawning
 
 
 class TestEnhancedSystemsIntegration:

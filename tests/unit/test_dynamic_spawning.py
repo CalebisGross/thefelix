@@ -16,12 +16,12 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from agents.dynamic_spawning import (
+from src.agents.dynamic_spawning import (
     ConfidenceMonitor, ContentAnalyzer, TeamSizeOptimizer, DynamicSpawning,
     ConfidenceTrend, ContentIssue, ConfidenceMetrics, ContentAnalysis,
     SpawningDecision
 )
-from communication.spoke import Message, MessageType
+from src.communication.spoke import Message, MessageType
 
 
 class TestConfidenceMonitor:

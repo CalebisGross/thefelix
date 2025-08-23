@@ -26,16 +26,16 @@ from typing import List, Dict, Any, Optional
 from pathlib import Path
 
 # Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.helix_geometry import HelixGeometry
-from llm.lm_studio_client import LMStudioClient, LMStudioConnectionError
-from agents.llm_agent import LLMTask
-from agents.specialized_agents import (
+from src.core.helix_geometry import HelixGeometry
+from src.llm.lm_studio_client import LMStudioClient, LMStudioConnectionError
+from src.agents.llm_agent import LLMTask
+from src.agents.specialized_agents import (
     ResearchAgent, AnalysisAgent, SynthesisAgent, CriticAgent
 )
-from communication.central_post import CentralPost
-from communication.spoke import SpokeManager
+from src.communication.central_post import CentralPost
+from src.communication.spoke import SpokeManager
 
 
 class FelixCodeReviewer:

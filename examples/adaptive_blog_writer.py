@@ -45,23 +45,23 @@ from pathlib import Path
 from datetime import datetime
 
 # Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.helix_geometry import HelixGeometry
-from llm.lm_studio_client import LMStudioClient, LMStudioConnectionError
-from llm.token_budget import TokenBudgetManager
-from agents.llm_agent import LLMTask
-from agents.specialized_agents import create_specialized_team
-from communication.central_post import CentralPost, AgentFactory
-from communication.spoke import SpokeManager
+from src.core.helix_geometry import HelixGeometry
+from src.llm.lm_studio_client import LMStudioClient, LMStudioConnectionError
+from src.llm.token_budget import TokenBudgetManager
+from src.agents.llm_agent import LLMTask
+from src.agents.specialized_agents import create_specialized_team
+from src.communication.central_post import CentralPost, AgentFactory
+from src.communication.spoke import SpokeManager
 
 # Enhanced system imports
-from agents.dynamic_spawning import DynamicSpawning
-from agents.prompt_optimization import PromptOptimizer, PromptContext
-from pipeline.chunking import ProgressiveProcessor, ContentSummarizer
-from memory.knowledge_store import KnowledgeStore, KnowledgeType, ConfidenceLevel
-from comparison.quality_metrics import QualityMetricsCalculator, DomainType
-from comparison.performance_benchmarks import PerformanceBenchmarker
+from src.agents.dynamic_spawning import DynamicSpawning
+from src.agents.prompt_optimization import PromptOptimizer, PromptContext
+from src.pipeline.chunking import ProgressiveProcessor, ContentSummarizer
+from src.memory.knowledge_store import KnowledgeStore, KnowledgeType, ConfidenceLevel
+from src.comparison.quality_metrics import QualityMetricsCalculator, DomainType
+from src.comparison.performance_benchmarks import PerformanceBenchmarker
 
 
 class AdaptiveFelixBlogWriter:

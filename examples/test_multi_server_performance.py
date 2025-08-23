@@ -21,9 +21,9 @@ from pathlib import Path
 from typing import List, Dict, Any, Tuple
 
 # Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from blog_writer import FelixBlogWriter
+from examples.blog_writer import FelixBlogWriter
 
 
 class PerformanceTest:

@@ -28,15 +28,15 @@ from typing import List, Dict, Any, Optional
 from pathlib import Path
 
 # Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.helix_geometry import HelixGeometry
-from llm.lm_studio_client import LMStudioClient, LMStudioConnectionError, RequestPriority
-from llm.token_budget import TokenBudgetManager
-from agents.llm_agent import LLMTask
-from agents.specialized_agents import create_specialized_team
-from communication.central_post import CentralPost, AgentFactory
-from communication.spoke import SpokeManager
+from src.core.helix_geometry import HelixGeometry
+from src.llm.lm_studio_client import LMStudioClient, LMStudioConnectionError, RequestPriority
+from src.llm.token_budget import TokenBudgetManager
+from src.agents.llm_agent import LLMTask
+from src.agents.specialized_agents import create_specialized_team
+from src.communication.central_post import CentralPost, AgentFactory
+from src.communication.spoke import SpokeManager
 
 
 class FelixColonyDesigner:

@@ -23,10 +23,10 @@ from pathlib import Path
 from typing import List, Dict, Any
 
 # Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from blog_writer import FelixBlogWriter
-from llm.multi_server_client import LMStudioClientPool
+from examples.blog_writer import FelixBlogWriter
+from src.llm.multi_server_client import LMStudioClientPool
 
 
 class MultiModelTester:
